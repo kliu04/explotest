@@ -1,0 +1,2 @@
+class GeneratedTest:
+    pass
