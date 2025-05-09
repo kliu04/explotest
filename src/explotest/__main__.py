@@ -1,13 +1,12 @@
 import ast
+import inspect
+import os
+import re
 import runpy
 import sys
 import sysconfig
 import types
 import typing
-import os
-import inspect
-import re
-
 
 executed_lines: list[str] = []
 
@@ -48,6 +47,7 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
 
     match event:
         case "call":
+            # I think 0 is just always called as the entry point into a file
             if positions and positions.lineno > 0:  # type: ignore
                 print(positions, filepath, positions.lineno, "CALL")
                 executed_lines.append(*frame_info.code_context)
@@ -86,7 +86,7 @@ def main():
     # FIXME?: recursively generate AST of imported modules (?)
     # actually don't need to do this because we can call it :)
     # unless that will mess up explore? not sure TBD
-    # since explore can be in multiple lines
+    # since explore can be in multiple files
 
     # What formats to send to carver?
     # AST optimization (do not load whole file)?
