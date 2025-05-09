@@ -8,8 +8,6 @@ import os
 import inspect
 import re
 
-# TODO: investigate if inspect.getouterframes(frame, context=1) is better on annotate explore
-
 executed_lines = []
 
 
@@ -34,21 +32,6 @@ def is_frozen_file(filepath):
 
 def tracer(frame: types.FrameType, event: str, arg: typing.Any):
     match event:
-        case "line":
-            frame_info = inspect.getframeinfo(frame)
-
-            # filter out python builtins
-
-            filepath = frame_info.filename
-            if (
-                frame_info.code_context
-                and not is_frozen_file(filepath)
-                and not is_stdlib_file(filepath)
-                and not is_venv_file(filepath)
-            ):
-                executed_lines.append(frame_info.code_context[0].strip())
-            # filename, lineno, function (function name), code context, index
-            # print(frame_info.code_context, frame_info.lineno)
         case "call":
             frame_info = inspect.getframeinfo(frame)
 
@@ -61,7 +44,48 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
                 and not is_stdlib_file(filepath)
                 and not is_venv_file(filepath)
             ):
-                executed_lines.append(frame_info.code_context[0].strip())
+                positions = frame_info.positions
+                if positions and positions.lineno > 0:  # type: ignore
+                    print(positions, filepath, "CALL")
+                    executed_lines.append(*frame_info.code_context)
+
+        case "line":
+            frame_info = inspect.getframeinfo(frame)
+
+            # filter out python builtins
+
+            filepath = frame_info.filename
+            if (
+                frame_info.code_context
+                and not is_frozen_file(filepath)
+                and not is_stdlib_file(filepath)
+                and not is_venv_file(filepath)
+            ):
+                positions = frame_info.positions
+                print(positions, filepath)
+                # don't think this is needed
+                # if positions:
+                #     start_lineno = positions.lineno
+                #     end_lineno = positions.end_lineno
+                #
+                #     if start_lineno is None or end_lineno is None:
+                #         print("oh no 2")
+                #         raise Exception("oh no 2")
+                #
+                #     with open(filepath, "r") as f:
+                #         lines = f.readlines()
+                #         code = lines[start_lineno - 1 : end_lineno]
+                #         executed_lines.append(code)
+                # print(code)
+                # else:
+                #     print("oh no")
+
+                executed_lines.append(*frame_info.code_context)
+            # filename, lineno, function (function name), code context, index
+            # print(frame_info.code_context, frame_info.lineno)
+
+        case "return":
+            pass
         case _:
             pass
 
@@ -83,8 +107,14 @@ def main():
     sys.settrace(tracer)
     runpy.run_path(target, run_name="__main__")
     sys.settrace(None)
+
+    target_ast = None
+    with open(target, "r") as f:
+        target_ast = ast.parse(f.read())
     # parsed_lines = list(map(lambda x: ast.parse(x), executed_lines))
-    print(executed_lines)
+    # print(executed_lines)
+    print(ast.dump(target_ast))
+    print("".join(executed_lines))
 
 
 if __name__ == "__main__":
