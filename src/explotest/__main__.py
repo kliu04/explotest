@@ -31,58 +31,30 @@ def is_frozen_file(filepath):
 
 
 def tracer(frame: types.FrameType, event: str, arg: typing.Any):
+
+    frame_info = inspect.getframeinfo(frame)
+    filepath = frame_info.filename
+
+    # filter out python builtins
+    if (
+        (not frame_info.code_context)
+        or is_frozen_file(filepath)
+        or is_stdlib_file(filepath)
+        or is_venv_file(filepath)
+    ):
+        return tracer
+
     match event:
         case "call":
-            frame_info = inspect.getframeinfo(frame)
-
-            # filter out python builtins
-
-            filepath = frame_info.filename
-            if (
-                frame_info.code_context
-                and not is_frozen_file(filepath)
-                and not is_stdlib_file(filepath)
-                and not is_venv_file(filepath)
-            ):
-                positions = frame_info.positions
-                if positions and positions.lineno > 0:  # type: ignore
-                    print(positions, filepath, "CALL")
-                    executed_lines.append(*frame_info.code_context)
+            positions = frame_info.positions
+            if positions and positions.lineno > 0:  # type: ignore
+                print(positions, filepath, "CALL")
+                executed_lines.append(*frame_info.code_context)
 
         case "line":
-            frame_info = inspect.getframeinfo(frame)
-
-            # filter out python builtins
-
-            filepath = frame_info.filename
-            if (
-                frame_info.code_context
-                and not is_frozen_file(filepath)
-                and not is_stdlib_file(filepath)
-                and not is_venv_file(filepath)
-            ):
-                positions = frame_info.positions
-                print(positions, filepath)
-                # don't think this is needed
-                # if positions:
-                #     start_lineno = positions.lineno
-                #     end_lineno = positions.end_lineno
-                #
-                #     if start_lineno is None or end_lineno is None:
-                #         print("oh no 2")
-                #         raise Exception("oh no 2")
-                #
-                #     with open(filepath, "r") as f:
-                #         lines = f.readlines()
-                #         code = lines[start_lineno - 1 : end_lineno]
-                #         executed_lines.append(code)
-                # print(code)
-                # else:
-                #     print("oh no")
-
-                executed_lines.append(*frame_info.code_context)
-            # filename, lineno, function (function name), code context, index
-            # print(frame_info.code_context, frame_info.lineno)
+            positions = frame_info.positions
+            print(positions, filepath)
+            executed_lines.append(*frame_info.code_context)
 
         case "return":
             pass
@@ -97,22 +69,24 @@ def main():
         print("Usage: python3 -m explotest <filename>")
         sys.exit(1)
 
+    # target is the file to run, shift argv down by 1
     target = sys.argv[1]
     sys.argv = sys.argv[1:]
 
-    # TODO: fix pathing issues with @explore
+    # fix pathing issues by adding the target's module to path
     script_dir = os.path.abspath(os.path.dirname(target))
     sys.path.insert(0, script_dir)
 
+    # start custom tracer and run target as main
     sys.settrace(tracer)
     runpy.run_path(target, run_name="__main__")
     sys.settrace(None)
 
+    # generate AST of target
     target_ast = None
     with open(target, "r") as f:
         target_ast = ast.parse(f.read())
-    # parsed_lines = list(map(lambda x: ast.parse(x), executed_lines))
-    # print(executed_lines)
+
     print(ast.dump(target_ast))
     print("".join(executed_lines))
 
