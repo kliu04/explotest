@@ -1,5 +1,5 @@
 import test_generator
 
 
-class PytestGenerator(generator.TestGenerator):
+class PytestGenerator(test_generator.TestGenerator):
     pass
