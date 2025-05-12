@@ -2,7 +2,6 @@ import ast
 import importlib.util
 import inspect
 import os
-import re
 import runpy
 import sys
 import sysconfig
@@ -16,23 +15,29 @@ executed_lines: list[str] = []
 # determine if a file is part of the standard library
 # E.g., /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/...
 # TODO: check if OS independent
-def is_stdlib_file(filepath):
+def is_stdlib_file(filepath: str) -> bool:
     stdlib_path = sysconfig.get_path("stdlib")
     abs_filename = os.path.abspath(filepath)
     abs_stdlib_path = os.path.abspath(stdlib_path)
     return abs_filename.startswith(abs_stdlib_path)
 
 
-def is_venv_file(filepath):
+def is_venv_file(filepath: str) -> bool:
     return ".venv" in filepath
 
 
-def is_frozen_file(filepath):
-    frozen = re.compile(r"<frozen .*>")
-    return frozen.search(filepath)
+def is_frozen_file(filepath: str) -> bool:
+    return filepath.startswith("<frozen ")
 
 
 def tracer(frame: types.FrameType, event: str, arg: typing.Any):
+    """
+    Hooks onto Python default tracer.
+    :param frame:
+    :param event:
+    :param arg:
+    :return: must return this object
+    """
 
     frame_info = inspect.getframeinfo(frame)
     filepath = frame_info.filename
@@ -68,6 +73,11 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
 
 
 def traverse_asts(target: str) -> list[ast.AST]:
+    """
+    Traverse the AST of target, returning the AST of all files imported recursively.
+    :param target:
+    :return: list of AST nodes imported
+    """
 
     def filter_imports(imports: list[str]) -> list[str]:
 
@@ -75,20 +85,27 @@ def traverse_asts(target: str) -> list[ast.AST]:
         imports = list(filter(lambda x: not x in sys.stdlib_module_names, imports))
         imports = list(filter(lambda x: not x in sys.builtin_module_names, imports))
 
-        # (mypy cannot detect that modules is not None)
-
         return imports
 
     def get_modules_origin(imports: list[str]) -> list[str]:
-        modules: typing.List[typing.Optional[ModuleSpec]] = [
+        """
+        Get file path of imported modules.
+        :param imports:
+        :return: list of file path of imported modules
+        """
+
+        modules: typing.List[ModuleSpec | None] = [
             importlib.util.find_spec(x) for x in imports
         ]
-        modules_: typing.List[ModuleSpec] = [x for x in modules if x is not None]
-        modules__: typing.List[str | None] = [x.origin for x in modules_]
+        modules_: list[ModuleSpec] = [x for x in modules if x is not None]
+        modules__: list[str | None] = [x.origin for x in modules_]
+        modules___: list[str] = [x for x in modules__ if x is not None]
 
+        # FIXME: silently ignore errors here
         # FIXME: need a better way to detect user installed packages (perhaps not with pip?)
-        modules__ = list(filter(lambda x: not is_venv_file(x), modules__))
-        return modules__  # type: ignore
+
+        modules___ = list(filter(lambda x: not is_venv_file(x), modules___))
+        return modules___
 
     def flatten(xss: list[list[typing.Any]]) -> list[typing.Any]:
         return [x for xs in xss for x in xs]
@@ -142,7 +159,10 @@ def main():
     # can't use lineno/end_lineno trick since multi-line statements exist
     # how to tell which things are executed?
 
+    # find imported files
     list(map(lambda x: print(ast.dump(x)), traverse_asts(target)))
+
+    # print executed lines
     print("".join(executed_lines))
 
 
