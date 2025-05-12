@@ -1,9 +1,6 @@
 from another_test_file import bar  # type: ignore
-import numpy as np
-import ast
 
-# from explotest.explore import explore  # type: ignore
-import sys
+from explotest.explore import explore  # type: ignore
 
 
 def baz(string: str, n: int):
@@ -13,7 +10,7 @@ def baz(string: str, n: int):
         return baz(string + "a", n - 1)
 
 
-# @explore
+@explore
 def foo(x: int, y: int) -> int:
     x += y
     y += x
@@ -21,6 +18,7 @@ def foo(x: int, y: int) -> int:
     return x + y + bar()
 
 
+# TODO: only support explicit main
 def main():
     if False:
         print("never")

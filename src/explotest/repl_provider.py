@@ -1,5 +1,5 @@
-import provider
+from provider import Provider
 
 
-class REPLProvider(provider.Provider):
+class REPLProvider(Provider):
     pass

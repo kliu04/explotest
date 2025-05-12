@@ -56,12 +56,12 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
         case "call":
             # I think 0 is just always called as the entry point into a file
             if positions and positions.lineno > 0:  # type: ignore
-                # print(positions, filepath, positions.lineno, "CALL")
+                print(positions, filepath, positions.lineno, "CALL")
                 executed_lines.append(*frame_info.code_context)
 
         case "line":
             if positions:
-                # print(positions, filepath, positions.lineno)
+                print(positions, filepath, positions.lineno)
                 executed_lines.append(*frame_info.code_context)
 
         case "return":
@@ -75,6 +75,8 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
 def traverse_asts(target: str) -> list[ast.AST]:
     """
     Traverse the AST of target, returning the AST of all files imported recursively.
+    TODO: another potential way to do this is by reading all files in the CWD
+    FIXME: fix infinite loop (A import B; B import A)
     :param target:
     :return: list of AST nodes imported
     """
@@ -160,7 +162,7 @@ def main():
     # how to tell which things are executed?
 
     # find imported files
-    list(map(lambda x: print(ast.dump(x)), traverse_asts(target)))
+    list(map(lambda x: print(ast.dump(x, indent=4)), traverse_asts(target)))
 
     # print executed lines
     print("".join(executed_lines))
