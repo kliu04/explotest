@@ -1,11 +1,5 @@
-import ast
-import provider
+from provider import Provider
 
 
-class SystemProvider(provider.Provider):
-
-    def generate_active_ast(self) -> list[ast.AST]:
-        return []
-
-    def generate_program_states(self) -> any:
-        return []
+class SystemProvider(Provider):
+    pass
