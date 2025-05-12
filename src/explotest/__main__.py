@@ -54,7 +54,7 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
 
     match event:
         case "call":
-            # I think 0 is just always called as the entry point into a file
+            # NOTE: I think 0 is just always called as the entry point into a file
             if positions and positions.lineno > 0:  # type: ignore
                 print(positions, filepath, positions.lineno, "CALL")
                 executed_lines.append(*frame_info.code_context)
@@ -75,11 +75,12 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
 def traverse_asts(target: str) -> list[ast.AST]:
     """
     Traverse the AST of target, returning the AST of all files imported recursively.
-    TODO: another potential way to do this is by reading all files in the CWD
-    FIXME: fix infinite loop (A import B; B import A)
+    NOTE: another potential way to do this is by reading all files in the CWD
     :param target:
     :return: list of AST nodes imported
     """
+
+    imported_modules = []
 
     def filter_imports(imports: list[str]) -> list[str]:
 
@@ -103,7 +104,7 @@ def traverse_asts(target: str) -> list[ast.AST]:
         modules__: list[str | None] = [x.origin for x in modules_]
         modules___: list[str] = [x for x in modules__ if x is not None]
 
-        # FIXME: silently ignore errors here
+        # FIXME: currently silently ignore errors/Nones here
         # FIXME: need a better way to detect user installed packages (perhaps not with pip?)
 
         modules___ = list(filter(lambda x: not is_venv_file(x), modules___))
@@ -112,7 +113,14 @@ def traverse_asts(target: str) -> list[ast.AST]:
     def flatten(xss: list[list[typing.Any]]) -> list[typing.Any]:
         return [x for xs in xss for x in xs]
 
-    def traverse_asts_inner(t) -> list[ast.AST]:
+    # TODO: may be better to switch to a filename repr of files, rather than their names
+    def traverse_asts_inner(t: str) -> list[ast.AST]:
+
+        # prevent infinite recursion (A imports B, B imports A)
+        if t in imported_modules:
+            return []
+        imported_modules.append(t)
+
         with open(t, "r") as f:
             target_ast = ast.parse(f.read(), filename=t)
             imports = []
@@ -126,6 +134,7 @@ def traverse_asts(target: str) -> list[ast.AST]:
 
                 elif isinstance(node, ast.Module):
                     pass
+
                 else:
                     # FIXME: imports do not have to be at the top
                     break
@@ -156,10 +165,8 @@ def main():
     runpy.run_path(target, run_name="__main__")
     sys.settrace(None)
 
-    # What formats to send to carver?
     # AST optimization (do not load whole file)?
     # can't use lineno/end_lineno trick since multi-line statements exist
-    # how to tell which things are executed?
 
     # find imported files
     list(map(lambda x: print(ast.dump(x, indent=4)), traverse_asts(target)))
@@ -169,5 +176,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # print(os.path.dirname(os.path.abspath(__file__)))
     main()
