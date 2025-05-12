@@ -105,9 +105,11 @@ def traverse_asts(target: str) -> list[ast.AST]:
                 elif isinstance(node, ast.ImportFrom):
                     imports.append(node.module)  # type: ignore
 
-                # else:
-                #     # FIXME: imports do not have to be at the top
-                #     break
+                elif isinstance(node, ast.Module):
+                    pass
+                else:
+                    # FIXME: imports do not have to be at the top
+                    break
 
             imports = filter_imports(imports)
             imports = get_modules_origin(imports)
