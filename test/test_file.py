@@ -1,4 +1,5 @@
 from another_test_file import bar  # type: ignore
+import numpy as np
 import ast
 
 # from explotest.explore import explore  # type: ignore
