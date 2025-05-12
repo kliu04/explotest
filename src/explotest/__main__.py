@@ -1,4 +1,5 @@
 import ast
+import importlib.util
 import inspect
 import os
 import re
@@ -7,6 +8,7 @@ import sys
 import sysconfig
 import types
 import typing
+from importlib.machinery import ModuleSpec
 
 executed_lines: list[str] = []
 
@@ -49,12 +51,12 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
         case "call":
             # I think 0 is just always called as the entry point into a file
             if positions and positions.lineno > 0:  # type: ignore
-                print(positions, filepath, positions.lineno, "CALL")
+                # print(positions, filepath, positions.lineno, "CALL")
                 executed_lines.append(*frame_info.code_context)
 
         case "line":
             if positions:
-                print(positions, filepath, positions.lineno)
+                # print(positions, filepath, positions.lineno)
                 executed_lines.append(*frame_info.code_context)
 
         case "return":
@@ -63,6 +65,56 @@ def tracer(frame: types.FrameType, event: str, arg: typing.Any):
             pass
 
     return tracer
+
+
+def traverse_asts(target: str) -> list[ast.AST]:
+
+    def filter_imports(imports: list[str]) -> list[str]:
+
+        # remove builtins
+        imports = list(filter(lambda x: not x in sys.stdlib_module_names, imports))
+        imports = list(filter(lambda x: not x in sys.builtin_module_names, imports))
+
+        # (mypy cannot detect that modules is not None)
+
+        return imports
+
+    def get_modules_origin(imports: list[str]) -> list[str]:
+        modules: typing.List[typing.Optional[ModuleSpec]] = [
+            importlib.util.find_spec(x) for x in imports
+        ]
+        modules_: typing.List[ModuleSpec] = [x for x in modules if x is not None]
+        modules__: typing.List[str | None] = [x.origin for x in modules_]
+
+        # FIXME: need a better way to detect user installed packages (perhaps not with pip?)
+        modules__ = list(filter(lambda x: not is_venv_file(x), modules__))
+        return modules__  # type: ignore
+
+    def flatten(xss: list[list[typing.Any]]) -> list[typing.Any]:
+        return [x for xs in xss for x in xs]
+
+    def traverse_asts_inner(t) -> list[ast.AST]:
+        with open(t, "r") as f:
+            target_ast = ast.parse(f.read(), filename=t)
+            imports = []
+            for node in ast.walk(target_ast):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        imports.append(alias.name)
+
+                elif isinstance(node, ast.ImportFrom):
+                    imports.append(node.module)  # type: ignore
+
+                # else:
+                #     # FIXME: imports do not have to be at the top
+                #     break
+
+            imports = filter_imports(imports)
+            imports = get_modules_origin(imports)
+
+            return flatten(list(map(traverse_asts_inner, imports))) + [target_ast]
+
+    return traverse_asts_inner(target)
 
 
 def main():
@@ -83,24 +135,15 @@ def main():
     runpy.run_path(target, run_name="__main__")
     sys.settrace(None)
 
-    # FIXME?: recursively generate AST of imported modules (?)
-    # actually don't need to do this because we can call it :)
-    # unless that will mess up explore? not sure TBD
-    # since explore can be in multiple files
-
     # What formats to send to carver?
     # AST optimization (do not load whole file)?
     # can't use lineno/end_lineno trick since multi-line statements exist
     # how to tell which things are executed?
 
-    # generate AST of target
-    target_ast = None
-    with open(target, "r") as f:
-        target_ast = ast.parse(f.read(), filename=target)
-
-    print(ast.dump(target_ast))
+    list(map(lambda x: print(ast.dump(x)), traverse_asts(target)))
     print("".join(executed_lines))
 
 
 if __name__ == "__main__":
+    # print(os.path.dirname(os.path.abspath(__file__)))
     main()
