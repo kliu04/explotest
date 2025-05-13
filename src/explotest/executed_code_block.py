@@ -6,3 +6,6 @@ class ExecutedCodeBlock:
         self.start_lineno = start_lineno
         self.end_lineno = end_lineno
         self.file = file
+
+    def __str__(self):
+        return f"ExecutedCodeBlock({self.start_lineno}, {self.end_lineno}, {self.file})"
