@@ -1,11 +1,13 @@
+import ast
+import atexit
 import functools
 import inspect
 import os
-from _ast import arguments, alias
+import sys
+import uuid
+from _ast import alias
 from pathlib import Path
-from typing import Any, cast
-import ast
-import atexit
+from typing import Any
 
 import dill  # type: ignore
 
@@ -37,6 +39,10 @@ def is_primitive(x: Any) -> bool:
     return isinstance(x, (int, float, str, bool))
 
 
+def is_running_under_test():
+    return "pytest" in sys.modules
+
+
 def emit_tests():
     """Called at the end of program execution to emit the generated tests."""
     import_dill = ast.Import(names=[alias(name="dill")])
@@ -46,11 +52,7 @@ def emit_tests():
     )
     ast.fix_missing_locations(module)
 
-    # ast.unparse(module)
-    print(ast.dump(module, indent=4))
-
-    filename = f"./{OUTPUT_FILE_FOLDER}/test_{import_file}.py"
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    filename = f"./test_{import_file}.py"
 
     with open(filename, "w") as f:
         f.write(ast.unparse(module))
@@ -60,6 +62,9 @@ atexit.register(emit_tests)
 
 
 def explore(func):
+
+    if is_running_under_test():
+        return lambda *args, **kwargs: func(*args, **kwargs)
 
     @functools.wraps(func)  # preserve docstrings, etc. of original fn
     def wrapper(*args, **kwargs):
@@ -77,18 +82,50 @@ def explore(func):
                     )
                 )
             else:
+                # create directory for pickled objects, store argument
+                os.makedirs("./pickled", exist_ok=True)
+                pickled_id = str(uuid.uuid4().hex)[:8]
+                pickled_path = f"./pickled/{arg_name}_{pickled_id}.pkl"
+                with open(pickled_path, "wb") as f:
+                    f.write(dill.dumps(arg_value))
+
                 assignments.append(
-                    ast.Assign(
-                        targets=[ast.Name(id=arg_name, ctx=ast.Store())],
-                        value=ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Name(id="dill", ctx=ast.Load()),
-                                attr="loads",
-                                ctx=ast.Load(),
+                    ast.With(
+                        items=[
+                            ast.withitem(
+                                context_expr=ast.Call(
+                                    func=ast.Name(id="open", ctx=ast.Load()),
+                                    args=[
+                                        ast.Constant(value=pickled_path),
+                                        ast.Constant(value="rb"),
+                                    ],
+                                    keywords=[],
+                                ),
+                                optional_vars=ast.Name(id="f", ctx=ast.Store()),
                             ),
-                            # args=[ast.Constant(value=dill.dumps(arg_value))],
-                            args=[ast.Constant(value=b"12345")],
-                        ),
+                        ],
+                        body=[
+                            ast.Assign(
+                                targets=[ast.Name(id=arg_name, ctx=ast.Store())],
+                                value=ast.Call(
+                                    func=ast.Attribute(
+                                        value=ast.Name(id="dill", ctx=ast.Load()),
+                                        attr="loads",
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[
+                                        ast.Call(
+                                            func=ast.Attribute(
+                                                value=ast.Name(id="f", ctx=ast.Load()),
+                                                attr="read",
+                                                ctx=ast.Load(),
+                                            )
+                                        )
+                                    ],
+                                    keywords=[],
+                                ),
+                            ),
+                        ],
                     )
                 )
 
@@ -100,7 +137,7 @@ def explore(func):
         )
 
         test_func = ast.FunctionDef(
-            name=f"test_{func.__qualname__}_{wrapper.counter}",
+            name=f"test_{func.__qualname__.replace(".", "_")}_{wrapper.counter}",
             args=ast.arguments(),
             body=[*assignments, test_func_call],
         )
@@ -110,7 +147,6 @@ def explore(func):
         # TODO: kwargs
         # TODO: fix performance bug
         # TODO: fix class name bug
-        # TODO: find a better way to find imports
         # TODO: sanitize names for methods (test_foo.bar)
         # TODO: add support for multiple files
         # TODO: write pickled objects to their own file
@@ -120,12 +156,14 @@ def explore(func):
 
     wrapper.counter = 0
     # FIXME: remove global somehow
+    # FIXME: remove duplicates
     global import_file
     import_file = Path(inspect.getfile(func)).stem
     imports.append(
         ast.ImportFrom(
             module=import_file,
-            names=[alias(name=func.__qualname__)],
+            # get rid of . for method qualnames
+            names=[alias(name=func.__qualname__.split(".")[0])],
             level=0,
         )
     )
