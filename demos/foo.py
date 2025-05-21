@@ -52,6 +52,11 @@ class BST:
         return self._preorder(self.root)
 
 
+@explore
+def identity(x):
+    return x
+
+
 if __name__ == "__main__":
     bst = BST()
     bst.insert(500)
@@ -61,3 +66,4 @@ if __name__ == "__main__":
     bst.insert(300)
     bst.search(600)
     print(bst.preorder())
+    identity(bst)

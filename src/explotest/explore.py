@@ -26,7 +26,7 @@ class _SUT:
 class _FileRecorder:
     def __init__(self: Self, filename) -> None:
         self.filename: Final = filename
-        self.imports: list[ast.ImportFrom] = []
+        self.imports: list[ast.Import] = []
         # mapping from name to suts (1 sut can be called multiple times)
         self.suts: dict[str, list[_SUT]] = dict()
 
@@ -97,7 +97,6 @@ def explore(func):
 
     filename = Path(inspect.getfile(func)).stem
     qualified_name = func.__qualname__
-    top_level_name = qualified_name.split(".")[0]
     file_recorder = None
     for recorder in recorders:
         if recorder.filename == filename:
@@ -105,23 +104,11 @@ def explore(func):
             break
     else:
         file_recorder = _FileRecorder(filename)
+        file_recorder.imports.append(ast.Import(names=[alias(name=filename)]))
         recorders.append(file_recorder)
 
     @functools.wraps(func)  # preserve docstrings, etc. of original fn
     def wrapper(*args, **kwargs):
-
-        # sut mapping currently doesn't contain this subroutine
-        # TODO: fix this
-        if qualified_name not in file_recorder.suts:
-            # add the file to the needed imports
-            file_recorder.imports.append(
-                ast.ImportFrom(
-                    module=filename,
-                    # get rid of . for method qualified names
-                    names=[alias(name=top_level_name)],
-                    level=0,
-                )
-            )
 
         test_sut = file_recorder.generate_sut(qualified_name)
         arg_spec = inspect.getfullargspec(func)
@@ -190,7 +177,7 @@ def explore(func):
 
         test_call = ast.Expr(
             value=ast.Call(
-                func=ast.Name(id=test_sut.name, ctx=ast.Load()),
+                func=ast.Name(id=f"{filename}.{test_sut.name}", ctx=ast.Load()),
                 args=[ast.Name(id=x, ctx=ast.Load()) for x in arg_names],
             )
         )
