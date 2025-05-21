@@ -69,7 +69,7 @@ def traverse_asts(target: str) -> list[ast.AST]:
         modules___ = list(filter(lambda x: not is_venv_file(x), modules___))
         return modules___
 
-    def flatten(xss: list[list[typing.Any]]) -> list[typing.Any]:
+    def flatten(xss: list[list]) -> list:
         return [x for xs in xss for x in xs]
 
     # TODO: may be better to switch to a filename repr of files, rather than their names
@@ -108,20 +108,27 @@ def traverse_asts(target: str) -> list[ast.AST]:
 
 class SystemProvider(Provider):
     executed_code_blocks: list[ExecutedCodeBlock] = []
+    executed_lines: list[str] = []
 
-    def __init__(self, target):
+    def __init__(self, target: str):
         self.target = target
 
         # start custom tracer and run target as main
-        sys.settrace(self.tracer)
+        # sys.settrace(self.tracer)
         runpy.run_path(target, run_name="__main__")
-        sys.settrace(None)
+        # sys.settrace(None)
 
-        for module in self.get_modules():
-            print(ast.dump(module, indent=4))
+        # for module in self.get_modules():
+        #     print(ast.dump(module, indent=4))
+        #
+        # for node in ast.walk(self.get_modules()[2]):
+        #     if isinstance(node, ast.stmt) or isinstance(node, ast.expr):
+        #         print(ast.dump(node, indent=4), node.lineno)
+        #
+        # for executed_code_block in self.executed_code_blocks:
+        #     print(executed_code_block)
 
-        for executed_code_block in self.executed_code_blocks:
-            print(executed_code_block)
+        # print("".join(self.executed_lines))
 
     def tracer(self, frame: types.FrameType, event: str, arg: typing.Any):
         """
@@ -155,15 +162,15 @@ class SystemProvider(Provider):
                         )
                     )
                     # string repr of code
-                    # self.executed_lines.append(*frame_info.code_context)
+                    self.executed_lines.append(*frame_info.code_context)
             case "line":
                 if positions is not None:
                     self.executed_code_blocks.append(
                         ExecutedCodeBlock(
-                            positions.lineno, positions.end_lineno, open(filepath)  # type: ignore
+                            positions.lineno, positions.end_lineno, open(filepath, "r")  # type: ignore
                         )
                     )
-                    # self.executed_lines.append(*frame_info.code_context)
+                    self.executed_lines.append(*frame_info.code_context)
 
             case "return":
                 pass
