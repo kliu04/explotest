@@ -7,24 +7,65 @@ import sys
 import uuid
 from _ast import alias
 from pathlib import Path
-from typing import Any
+from typing import Any, Self, Final
 
 import dill  # type: ignore
 
-OUTPUT_FILE_FOLDER = "tests"
+
+class _SUT:
+    ast = None
+
+    def __init__(self: Self, name: str, count: int) -> None:
+        self.name: Final = name
+        self.count: Final = count
+
+    def sanitize_sut_name(self):
+        return self.name.replace(".", "_")
 
 
-# mapping from subroutine names to their call count
-call_count: dict[str, int] = dict()
+class _FileRecorder:
+    def __init__(self: Self, filename) -> None:
+        self.filename: Final = filename
+        self.imports: list[ast.ImportFrom] = []
+        # mapping from name to suts (1 sut can be called multiple times)
+        self.suts: dict[str, list[_SUT]] = dict()
+
+    def generate_sut(self: Self, sut_name: str) -> _SUT:
+        _sut = None
+        if sut_name in self.suts:
+            num_suts = len(self.suts[sut_name])
+            _sut = _SUT(sut_name, num_suts + 1)
+            self.suts[sut_name].append(_sut)
+        else:
+            _sut = _SUT(sut_name, 1)
+            self.suts[sut_name] = [_sut]
+        return _sut
+
+    def emit_tests(self):
+        """Called at the end of program execution to emit the generated tests."""
+        import_dill = ast.Import(names=[alias(name="dill")])
+
+        asts = []
+        for lis in self.suts.values():
+            for sut in lis:
+                if sut.ast is not None:
+                    asts.append(sut.ast)
+
+        module = ast.Module(body=[*self.imports, import_dill, *asts], type_ignores=[])
+        ast.fix_missing_locations(module)
+
+        filename = f"./test_{self.filename}.py"
+
+        with open(filename, "w") as f:
+            f.write(ast.unparse(module))
 
 
-# imports of user defined subroutines-under-test
-imports: list[ast.ImportFrom] = []
+recorders: list[_FileRecorder] = []
 
-# generated function definitions from @explore
-function_def_asts: list[ast.FunctionDef] = []
 
-import_file = None
+def emit_testss():
+    for recorder in recorders:
+        recorder.emit_tests()
 
 
 def is_primitive(x: Any) -> bool:
@@ -39,28 +80,14 @@ def is_primitive(x: Any) -> bool:
     return isinstance(x, (int, float, str, bool))
 
 
+# FIXME: hacky
 def is_running_under_test():
     return "pytest" in sys.modules
 
 
-def emit_tests():
-    """Called at the end of program execution to emit the generated tests."""
-    import_dill = ast.Import(names=[alias(name="dill")])
-
-    module = ast.Module(
-        body=[*imports, import_dill, *function_def_asts], type_ignores=[]
-    )
-    ast.fix_missing_locations(module)
-
-    filename = f"./test_{import_file}.py"
-
-    with open(filename, "w") as f:
-        f.write(ast.unparse(module))
-
-
 # call emit_test when program exits
 if not is_running_under_test():
-    atexit.register(emit_tests)
+    atexit.register(emit_testss)
 
 
 def explore(func):
@@ -68,14 +95,42 @@ def explore(func):
     if is_running_under_test():
         return func
 
+    filename = Path(inspect.getfile(func)).stem
+    qualified_name = func.__qualname__
+    top_level_name = qualified_name.split(".")[0]
+    file_recorder = None
+    for recorder in recorders:
+        if recorder.filename == filename:
+            file_recorder = recorder
+            break
+    else:
+        file_recorder = _FileRecorder(filename)
+        recorders.append(file_recorder)
+
     @functools.wraps(func)  # preserve docstrings, etc. of original fn
     def wrapper(*args, **kwargs):
-        wrapper.counter += 1
+
+        # sut mapping currently doesn't contain this subroutine
+        # TODO: fix this
+        if qualified_name not in file_recorder.suts:
+            # add the file to the needed imports
+            file_recorder.imports.append(
+                ast.ImportFrom(
+                    module=filename,
+                    # get rid of . for method qualified names
+                    names=[alias(name=top_level_name)],
+                    level=0,
+                )
+            )
+
+        test_sut = file_recorder.generate_sut(qualified_name)
         arg_spec = inspect.getfullargspec(func)
         arg_names = arg_spec.args
 
         assignments = []
         for arg_name, arg_value in zip(arg_names, args):
+
+            # hard-code primitives
             if is_primitive(arg_value):
                 assignments.append(
                     ast.Assign(
@@ -92,6 +147,7 @@ def explore(func):
                     f.write(dill.dumps(arg_value))
 
                 assignments.append(
+                    # with open....
                     ast.With(
                         items=[
                             ast.withitem(
@@ -106,6 +162,7 @@ def explore(func):
                                 optional_vars=ast.Name(id="f", ctx=ast.Store()),
                             ),
                         ],
+                        # load from pickled file
                         body=[
                             ast.Assign(
                                 targets=[ast.Name(id=arg_name, ctx=ast.Store())],
@@ -131,15 +188,15 @@ def explore(func):
                     )
                 )
 
-        test_func_call = ast.Expr(
+        test_call = ast.Expr(
             value=ast.Call(
-                func=ast.Name(id=func.__qualname__, ctx=ast.Load()),
+                func=ast.Name(id=test_sut.name, ctx=ast.Load()),
                 args=[ast.Name(id=x, ctx=ast.Load()) for x in arg_names],
             )
         )
 
-        test_func = ast.FunctionDef(
-            name=f"test_{func.__qualname__.replace(".", "_")}_{wrapper.counter}",
+        test_def_ast = ast.FunctionDef(
+            name=f"test_{test_sut.sanitize_sut_name()}_{test_sut.count}",
             args=ast.arguments(
                 posonlyargs=[],
                 args=[],
@@ -147,35 +204,16 @@ def explore(func):
                 kw_defaults=[],
                 defaults=[],
             ),
-            body=[*assignments, test_func_call],
+            body=[*assignments, test_call],
             decorator_list=[],
             returns=None,
         )
 
-        function_def_asts.append(test_func)
+        test_sut.ast = test_def_ast
 
         # TODO: kwargs
-        # TODO: fix performance bug
-        # TODO: fix class name bug
-        # TODO: sanitize names for methods (test_foo.bar)
-        # TODO: add support for multiple files
-        # TODO: write pickled objects to their own file
 
         # finally, call and return the subroutine-under-test
         return func(*args, **kwargs)
-
-    wrapper.counter = 0
-    # FIXME: remove global somehow
-    # FIXME: remove duplicates
-    global import_file
-    import_file = Path(inspect.getfile(func)).stem
-    imports.append(
-        ast.ImportFrom(
-            module=import_file,
-            # get rid of . for method qualnames
-            names=[alias(name=func.__qualname__.split(".")[0])],
-            level=0,
-        )
-    )
 
     return wrapper
