@@ -66,7 +66,7 @@ if not is_running_under_test():
 def explore(func):
 
     if is_running_under_test():
-        return lambda *args, **kwargs: func(*args, **kwargs)
+        return func
 
     @functools.wraps(func)  # preserve docstrings, etc. of original fn
     def wrapper(*args, **kwargs):
