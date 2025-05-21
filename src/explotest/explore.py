@@ -58,7 +58,9 @@ def emit_tests():
         f.write(ast.unparse(module))
 
 
-atexit.register(emit_tests)
+# call emit_test when program exits
+if not is_running_under_test():
+    atexit.register(emit_tests)
 
 
 def explore(func):
