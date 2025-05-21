@@ -7,65 +7,65 @@ import sys
 import uuid
 from _ast import alias
 from pathlib import Path
-from typing import Any, Self, Final
+from typing import Any, Self, Final, Optional
 
 import dill  # type: ignore
 
 
-class _SUT:
-    ast = None
+class TestFunction:
+    """Represents a single function-under-test."""
 
     def __init__(self: Self, name: str, count: int) -> None:
         self.name: Final = name
         self.count: Final = count
+        self.ast_node: Optional[ast.FunctionDef] = None
 
-    def sanitize_sut_name(self):
+    @property
+    def sanitized_name(self):
         return self.name.replace(".", "_")
 
 
-class _FileRecorder:
+class TestFileGenerator:
+    """Manages test generation for a single source file."""
+
     def __init__(self: Self, filename) -> None:
         self.filename: Final = filename
         self.imports: list[ast.Import] = []
-        # mapping from name to suts (1 sut can be called multiple times)
-        self.suts: dict[str, list[_SUT]] = dict()
+        # mapping from function name to TestFunction class
+        self.test_functions: dict[str, list[TestFunction]] = dict()
 
-    def generate_sut(self: Self, sut_name: str) -> _SUT:
-        _sut = None
-        if sut_name in self.suts:
-            num_suts = len(self.suts[sut_name])
-            _sut = _SUT(sut_name, num_suts + 1)
-            self.suts[sut_name].append(_sut)
+    def generate_test_function(self: Self, fn_name: str) -> TestFunction:
+        if fn_name in self.test_functions:
+            call_count = len(self.test_functions[fn_name]) + 1
+            test_func = TestFunction(fn_name, call_count)
+            self.test_functions[fn_name].append(test_func)
         else:
-            _sut = _SUT(sut_name, 1)
-            self.suts[sut_name] = [_sut]
-        return _sut
+            test_func = TestFunction(fn_name, 1)
+            self.test_functions[fn_name] = [test_func]
+        return test_func
 
     def emit_tests(self):
-        """Called at the end of program execution to emit the generated tests."""
+        """Generate the complete test file with all collected test functions."""
         import_dill = ast.Import(names=[alias(name="dill")])
 
         asts = []
-        for lis in self.suts.values():
-            for sut in lis:
-                if sut.ast is not None:
-                    asts.append(sut.ast)
+        for lis in self.test_functions.values():
+            for test_function in lis:
+                if test_function.ast_node is not None:
+                    asts.append(test_function.ast_node)
 
-        module = ast.Module(body=[*self.imports, import_dill, *asts], type_ignores=[])
+        import_statements = [*self.imports, import_dill, *asts]
+        module = ast.Module(body=import_statements, type_ignores=[])
         ast.fix_missing_locations(module)
 
+        self._write_test_file(module)
+
+    def _write_test_file(self, module: ast.Module) -> None:
+        """Write module to a file."""
         filename = f"./test_{self.filename}.py"
 
         with open(filename, "w") as f:
             f.write(ast.unparse(module))
-
-
-recorders: list[_FileRecorder] = []
-
-
-def emit_testss():
-    for recorder in recorders:
-        recorder.emit_tests()
 
 
 def is_primitive(x: Any) -> bool:
@@ -85,13 +85,20 @@ def is_running_under_test():
     return "pytest" in sys.modules
 
 
+recorders: list[TestFileGenerator] = []
+
+
+def emit_testss():
+    for recorder in recorders:
+        recorder.emit_tests()
+
+
 # call emit_test when program exits
 if not is_running_under_test():
     atexit.register(emit_testss)
 
 
 def explore(func):
-
     if is_running_under_test():
         return func
 
@@ -103,14 +110,16 @@ def explore(func):
             file_recorder = recorder
             break
     else:
-        file_recorder = _FileRecorder(filename)
+        file_recorder = TestFileGenerator(filename)
+        # NOTE: `@explore` on unreached functions (from main),
+        #       do not need to be imported
         file_recorder.imports.append(ast.Import(names=[alias(name=filename)]))
         recorders.append(file_recorder)
 
     @functools.wraps(func)  # preserve docstrings, etc. of original fn
     def wrapper(*args, **kwargs):
 
-        test_sut = file_recorder.generate_sut(qualified_name)
+        test_function = file_recorder.generate_test_function(qualified_name)
         arg_spec = inspect.getfullargspec(func)
         arg_names = arg_spec.args
 
@@ -175,15 +184,17 @@ def explore(func):
                     )
                 )
 
+        # call the function
         test_call = ast.Expr(
             value=ast.Call(
-                func=ast.Name(id=f"{filename}.{test_sut.name}", ctx=ast.Load()),
+                func=ast.Name(id=f"{filename}.{test_function.name}", ctx=ast.Load()),
                 args=[ast.Name(id=x, ctx=ast.Load()) for x in arg_names],
             )
         )
 
+        # wrap everything in a function
         test_def_ast = ast.FunctionDef(
-            name=f"test_{test_sut.sanitize_sut_name()}_{test_sut.count}",
+            name=f"test_{test_function.sanitized_name}_{test_function.count}",
             args=ast.arguments(
                 posonlyargs=[],
                 args=[],
@@ -196,11 +207,11 @@ def explore(func):
             returns=None,
         )
 
-        test_sut.ast = test_def_ast
+        test_function.ast_node = test_def_ast
 
         # TODO: kwargs
 
-        # finally, call and return the subroutine-under-test
+        # finally, call and return the function-under-test
         return func(*args, **kwargs)
 
     return wrapper
