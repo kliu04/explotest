@@ -84,18 +84,18 @@ def is_primitive(x: Any) -> bool:
 def is_running_under_test():
     return "pytest" in sys.modules
 
+# keeps track of all files
+generators: list[TestFileGenerator] = []
 
-recorders: list[TestFileGenerator] = []
 
-
-def emit_testss():
-    for recorder in recorders:
-        recorder.emit_tests()
+def emit_all_tests():
+    for generator in generators:
+        generator.emit_tests()
 
 
 # call emit_test when program exits
 if not is_running_under_test():
-    atexit.register(emit_testss)
+    atexit.register(emit_all_tests)
 
 
 def explore(func):
@@ -105,7 +105,7 @@ def explore(func):
     filename = Path(inspect.getfile(func)).stem
     qualified_name = func.__qualname__
     file_recorder = None
-    for recorder in recorders:
+    for recorder in generators:
         if recorder.filename == filename:
             file_recorder = recorder
             break
@@ -114,7 +114,7 @@ def explore(func):
         # NOTE: `@explore` on unreached functions (from main),
         #       do not need to be imported
         file_recorder.imports.append(ast.Import(names=[alias(name=filename)]))
-        recorders.append(file_recorder)
+        generators.append(file_recorder)
 
     @functools.wraps(func)  # preserve docstrings, etc. of original fn
     def wrapper(*args, **kwargs):
