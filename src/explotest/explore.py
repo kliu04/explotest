@@ -140,8 +140,16 @@ def explore(func):
 
         test_func = ast.FunctionDef(
             name=f"test_{func.__qualname__.replace(".", "_")}_{wrapper.counter}",
-            args=ast.arguments(),
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[],
+                kwonlyargs=[],
+                kw_defaults=[],
+                defaults=[],
+            ),
             body=[*assignments, test_func_call],
+            decorator_list=[],
+            returns=None,
         )
 
         function_def_asts.append(test_func)
