@@ -1,5 +1,6 @@
 import ast
 
+import dill
 import pytest
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 
@@ -91,3 +92,16 @@ def test_find_function_args(tg: TestGenerator) -> None:
     ]
 
     assert all([ast.unparse(x) == ast.unparse(y) for x, y in zip(expected, tg.find_function_args())])
+
+
+def test_pickle_args(tg: TestGenerator) -> None:
+    with open('../test_data/f.pkl', 'rb') as f_file, open('../test_data/x.pkl', 'rb') as x_file, open('../test_data/dx.pkl', 'rb') as dx_file, open('../test_data/R.pkl', 'rb') as R_file:
+        expected = {
+            'f': dill.load(f_file),
+            'x': dill.load(x_file),
+            'dx': dill.load(dx_file),
+            'R': dill.load(R_file)
+        }
+
+    result = tg.get_args_as_pickles()
+    assert expected == result
