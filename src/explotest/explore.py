@@ -121,27 +121,78 @@ def explore(func):
     def wrapper(*args, **kwargs):
 
         test_function = file_recorder.generate_test_function(qualified_name)
+        os.makedirs("./pickled", exist_ok=True)
+
         arg_spec = inspect.getfullargspec(func)
-        arg_names = arg_spec.args
+        parameters = arg_spec.args
+        arguments = []
+        # need to figure out which kwargs were used to get varkw
+        used_keyword_parameters = set()
+
+        # handle positional parameters
+        varargs = []
+
+        if len(parameters) > len(args):
+            # too many parameters, not enough args
+            # must have default arguments or is a keyword arg
+            arguments += list(args)
+            for i, missing in enumerate(parameters[len(args) :]):
+                if missing in kwargs:
+                    arguments.append(kwargs[missing])
+                else:
+                    arguments.append(arg_spec.defaults[i])
+                    used_keyword_parameters.add(missing)
+
+        elif len(parameters) < len(args):
+            # need to move rest of args to varargs
+            arguments = args[: len(parameters)]
+            varargs = args[len(parameters) :]
+        elif len(parameters) == len(args):
+            arguments = args
+
+        assert len(parameters) == len(arguments)
+
+        # handle keyword parameters
+        arguments = list(arguments)
+        for keyword_parameter in arg_spec.kwonlyargs:
+            if keyword_parameter in kwargs:
+                parameters.append(keyword_parameter)
+                arguments.append(kwargs[keyword_parameter])
+                used_keyword_parameters.add(keyword_parameter)
+            else:
+                parameters.append(keyword_parameter)
+                arguments.append(arg_spec.kwonlydefaults[keyword_parameter])
+
+        assert len(parameters) == len(arguments)
+        varkw = {k: v for k, v in kwargs.items() if k not in used_keyword_parameters}
+
+        if arg_spec.varargs is not None:
+            parameters.append(arg_spec.varargs)
+            arguments.append(varargs)
+
+        if arg_spec.varkw is not None:
+            parameters.append(arg_spec.varkw)
+            arguments.append(varkw)
+
+        print(parameters, arguments)
 
         assignments = []
-        for arg_name, arg_value in zip(arg_names, args):
+        for parameter, argument in zip(parameters, arguments):
 
             # hard-code primitives
-            if is_primitive(arg_value):
+            if is_primitive(argument):
                 assignments.append(
                     ast.Assign(
-                        targets=[ast.Name(id=arg_name, ctx=ast.Store())],
-                        value=ast.Constant(value=arg_value),
+                        targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                        value=ast.Constant(value=argument),
                     )
                 )
             else:
                 # create directory for pickled objects, store argument
-                os.makedirs("./pickled", exist_ok=True)
                 pickled_id = str(uuid.uuid4().hex)[:8]
-                pickled_path = f"./pickled/{arg_name}_{pickled_id}.pkl"
+                pickled_path = f"./pickled/{parameter}_{pickled_id}.pkl"
                 with open(pickled_path, "wb") as f:
-                    f.write(dill.dumps(arg_value))
+                    f.write(dill.dumps(argument))
 
                 assignments.append(
                     # with open....
@@ -162,7 +213,7 @@ def explore(func):
                         # load from pickled file
                         body=[
                             ast.Assign(
-                                targets=[ast.Name(id=arg_name, ctx=ast.Store())],
+                                targets=[ast.Name(id=parameter, ctx=ast.Store())],
                                 value=ast.Call(
                                     func=ast.Attribute(
                                         value=ast.Name(id="dill", ctx=ast.Load()),
@@ -189,7 +240,7 @@ def explore(func):
         test_call = ast.Expr(
             value=ast.Call(
                 func=ast.Name(id=f"{filename}.{test_function.name}", ctx=ast.Load()),
-                args=[ast.Name(id=x, ctx=ast.Load()) for x in arg_names],
+                args=[ast.Name(id=x, ctx=ast.Load()) for x in parameters],
             )
         )
 
@@ -209,8 +260,6 @@ def explore(func):
         )
 
         test_function.ast_node = test_def_ast
-
-        # TODO: kwargs
 
         # finally, call and return the function-under-test
         return func(*args, **kwargs)
