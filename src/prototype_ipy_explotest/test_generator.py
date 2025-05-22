@@ -1,6 +1,7 @@
 import ast
 from abc import ABC
 from dataclasses import dataclass
+import dill
 from typing import Iterable
 
 from IPython import InteractiveShell
@@ -32,15 +33,17 @@ class IPythonExecutionHistory:
         return iter(self.d)
 
     def __next__(self):
-        return next(self.d)
+        return next(self.__iter__())
 
 
 class TestGenerator(ABC):
+    shell: InteractiveShell
     history: IPythonExecutionHistory
     invocation_lineno: int
     target_lines: tuple[int, int]
 
     def __init__(self, shell: InteractiveShell, invocation_lineno: int, target_lines: tuple[int, int] = (-1, -1)):
+        self.shell = shell
         session: Iterable[tuple[int, int, tuple[str, str | None]]] = list(shell.history_manager.get_range(output=True))
         self.history = IPythonExecutionHistory(session)
         self.invocation_lineno = invocation_lineno
@@ -85,7 +88,7 @@ class TestGenerator(ABC):
     def _search_history_for_func_def_with_id(self, id: str) -> ast.FunctionDef | None:
         def search_helper(node: ast.AST) -> ast.FunctionDef | None:
             for child in ast.walk(node):
-                if type(child) == ast.FunctionDef and child.name == id:
+                if isinstance(node, ast.FunctionDef) and child.name == id:
                     return child
             return None
 
@@ -129,3 +132,14 @@ class TestGenerator(ABC):
         """
         call_node = self.call_on_lineno
         return call_node.args
+
+    def get_args_as_pickles(self) -> dict[str, str]:
+        # the order of params & args should be the same.
+        params = self.find_function_params()
+        args = self.find_function_args()
+        result: dict[str, str] = {}
+        for p, a in zip(params, args):
+            evaluated_arg = self.shell.ev(a)
+            pickled = dill.dumps(evaluated_arg)
+            result[p] = pickled
+        return result
