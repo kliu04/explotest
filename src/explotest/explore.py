@@ -103,6 +103,7 @@ def explore(func):
     if is_running_under_test():
         return func
 
+    filepath = Path(inspect.getfile(func)).parent
     filename = Path(inspect.getfile(func)).stem
     qualified_name = func.__qualname__
     file_recorder = None
@@ -121,7 +122,7 @@ def explore(func):
     def wrapper(*args, **kwargs):
 
         test_function = file_recorder.generate_test_function(qualified_name)
-        os.makedirs("./pickled", exist_ok=True)
+        os.makedirs(f"{filepath}/pickled", exist_ok=True)
 
         arg_spec = inspect.getfullargspec(func)
         parameters = arg_spec.args
@@ -130,7 +131,7 @@ def explore(func):
         used_keyword_parameters = set()
 
         # handle positional parameters
-        varargs = []
+        remaining_arguments = []
 
         if len(parameters) > len(args):
             # too many parameters, not enough args
@@ -146,7 +147,7 @@ def explore(func):
         elif len(parameters) < len(args):
             # need to move rest of args to varargs
             arguments = args[: len(parameters)]
-            varargs = args[len(parameters) :]
+            remaining_arguments = args[len(parameters) :]
         elif len(parameters) == len(args):
             arguments = args
 
@@ -164,17 +165,17 @@ def explore(func):
                 arguments.append(arg_spec.kwonlydefaults[keyword_parameter])
 
         assert len(parameters) == len(arguments)
-        varkw = {k: v for k, v in kwargs.items() if k not in used_keyword_parameters}
+        remaining_kwargs = {
+            k: v for k, v in kwargs.items() if k not in used_keyword_parameters
+        }
 
         if arg_spec.varargs is not None:
             parameters.append(arg_spec.varargs)
-            arguments.append(varargs)
+            arguments.append(remaining_arguments)
 
         if arg_spec.varkw is not None:
             parameters.append(arg_spec.varkw)
-            arguments.append(varkw)
-
-        print(parameters, arguments)
+            arguments.append(remaining_kwargs)
 
         assignments = []
         for parameter, argument in zip(parameters, arguments):
@@ -190,7 +191,7 @@ def explore(func):
             else:
                 # create directory for pickled objects, store argument
                 pickled_id = str(uuid.uuid4().hex)[:8]
-                pickled_path = f"./pickled/{parameter}_{pickled_id}.pkl"
+                pickled_path = f"{filepath}/pickled/{parameter}_{pickled_id}.pkl"
                 with open(pickled_path, "wb") as f:
                     f.write(dill.dumps(argument))
 
