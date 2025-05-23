@@ -28,8 +28,9 @@ class TestFunction:
 class TestFileGenerator:
     """Manages test generation for a single source file."""
 
-    def __init__(self: Self, filename) -> None:
+    def __init__(self: Self, filename, filepath) -> None:
         self.filename: Final = filename
+        self.filepath: Final = filepath
         self.imports: list[ast.Import] = []
         # mapping from function name to TestFunction class
         self.test_functions: dict[str, list[TestFunction]] = dict()
@@ -62,7 +63,7 @@ class TestFileGenerator:
 
     def _write_test_file(self, module: ast.Module) -> None:
         """Write module to a file."""
-        filename = f"./test_{self.filename}.py"
+        filename = f"{self.filepath}/test_{self.filename}.py"
 
         with open(filename, "w") as f:
             f.write(ast.unparse(module))
@@ -112,7 +113,7 @@ def explore(func):
             file_recorder = recorder
             break
     else:
-        file_recorder = TestFileGenerator(filename)
+        file_recorder = TestFileGenerator(filename, filepath)
         # NOTE: `@explore` on unreached functions (from main),
         #       do not need to be imported
         file_recorder.imports.append(ast.Import(names=[alias(name=filename)]))
