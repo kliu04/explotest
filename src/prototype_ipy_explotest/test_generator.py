@@ -1,12 +1,12 @@
 import ast
 from abc import ABC
 from dataclasses import dataclass
-import dill
 from typing import Iterable
 
+import dill
 from IPython import InteractiveShell
 
-from src.prototype_ipy_explotest.generated_test import GeneratedTest
+from src.prototype_ipy_explotest.generated_test import GeneratedTest, PyTestFixture
 
 
 @dataclass
@@ -63,6 +63,16 @@ class TestGenerator(ABC):
         """
         return GeneratedTest()
 
+    def generate_fixture(self, param: str) -> PyTestFixture:
+        """
+        Creates PyTest test fixture (a function) for a specific parameter.
+        :param param: The target parameter.
+        :return:
+        """
+        assert param in self.find_function_params()
+        return PyTestFixture() # stub
+
+
     @property
     def _ast_node_at_invocation_lineno(self) -> ast.Module:
         return self.history[self.invocation_lineno].input
@@ -88,7 +98,7 @@ class TestGenerator(ABC):
     def _search_history_for_func_def_with_id(self, id: str) -> ast.FunctionDef | None:
         def search_helper(node: ast.AST) -> ast.FunctionDef | None:
             for child in ast.walk(node):
-                if isinstance(node, ast.FunctionDef) and child.name == id:
+                if isinstance(child, ast.FunctionDef) and child.name == id:
                     return child
             return None
 
@@ -100,28 +110,28 @@ class TestGenerator(ABC):
         """
         for line in self.history:
             execution_result = self.history[line].input
+
             function_def_at_result = search_helper(execution_result)
             if function_def_at_result is not None:
                 return function_def_at_result
         return None
 
-
-    def find_function_params(self) -> set[str]:
+    def find_function_params(self) -> list[str]:
         """
         Finds the parameters that the function-under-test contains and their types
         :return: A dictionary that maps parameter names to their types.
         """
 
-        result: set[str] = set()
+        result: list[str] = []
 
         call_id = self.call_on_lineno.func.id  # type: ignore
         target_func = self._search_history_for_func_def_with_id(call_id)
         if target_func is None:
-            raise ValueError
+            raise ValueError('Function definition not found.')
 
         # TODO: support varargs & kwargs
         for arg in target_func.args.posonlyargs + target_func.args.args + target_func.args.kwonlyargs:
-            result.add(arg.arg)
+            result.append(arg.arg)
 
         return result
 
@@ -139,7 +149,7 @@ class TestGenerator(ABC):
         args = self.find_function_args()
         result: dict[str, str] = {}
         for p, a in zip(params, args):
-            evaluated_arg = self.shell.ev(a)
+            evaluated_arg = self.shell.ev(ast.unparse(a))
             pickled = dill.dumps(evaluated_arg)
             result[p] = pickled
         return result
