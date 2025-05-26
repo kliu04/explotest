@@ -67,8 +67,8 @@ def test_test_generation(tg: TestGenerator) -> None:
 
 def test_get_call_on_lineno(tg) -> None:
     call = tg.call_on_lineno
-    assert type(call) == ast.Call
-    assert type(call.func) == ast.Name
+    assert isinstance(call, ast.Call)
+    assert isinstance(call.func, ast.Name)
     assert call.func.id == 'tr_rule' and type(call.func.ctx) == ast.Load
 
 

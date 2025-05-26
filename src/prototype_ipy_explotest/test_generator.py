@@ -111,7 +111,7 @@ class TestGenerator(ABC):
         :raises: Exception (type TBA) if there is no call on lineno
         """
         for node in self._ast_node_at_invocation_lineno.body:
-            if type(node) == ast.Expr and type(node.value) == ast.Call:
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
                 return node.value
         raise ValueError(
             'No call was found in target line number. Make sure that the line is only a call, not an assignment.')
