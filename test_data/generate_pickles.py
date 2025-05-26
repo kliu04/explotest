@@ -28,3 +28,5 @@ def tr_rule(f: pd.Series, x: pd.Series, dx: float, R: int):
     )
 
 tr_rule(values['f'], values['x'], dx, 1)
+
+# ---- expected test ----

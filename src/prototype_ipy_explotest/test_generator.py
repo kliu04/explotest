@@ -65,10 +65,14 @@ class TestGenerator(ABC):
         """
         call_id = self.call_on_lineno.func.id  # type: ignore
         target_func = self._search_history_for_func_def_with_id(call_id)
+
+        if target_func is None:
+            raise ValueError(f'No function definition found on target line. Target line: {self.invocation_lineno}')
+
         test = GeneratedTest([target_func], self.imports, call_id,
                              [self.generate_fixture(arg) for arg in self.get_args_as_pickles()],
                              [ast.Assign(targets=[ast.Name(id='result', ctx=ast.Store())],
-                                         value=ast.Call(func=ast.Name(id='foo', ctx=ast.Load())))], [])
+                                         value=ast.Call(func=ast.Name(id=target_func.name, ctx=ast.Load()), args=[ast.Name(id=f'generated_{a}', ctx=ast.Load()) for a in self.find_function_args()]))], [])
         return test
 
     def write_pickles_to_disk(self, folder: str) -> None:
@@ -76,9 +80,7 @@ class TestGenerator(ABC):
         if not folder_path.is_dir():
             raise NotADirectoryError('Folder does not exist!')
 
-        # for param, pickle_bytes in self.get_args_as_pickles():
-        # self._write_pickle_to_disk(param, pickle_bytes)
-        # pass
+        # for param, pickle_bytes in self.get_args_as_pickles():  # self._write_pickle_to_disk(param, pickle_bytes)  # pass
 
     def _write_pickle_to_disk(self, param: str, pickle_bytes: str, folder: str) -> None:
         # TODO: implement ts
@@ -96,9 +98,9 @@ class TestGenerator(ABC):
         """
         assert param in self.find_function_params()
         result = PyTestFixture(param)
-        result.add_node(ast.Return(value=ast.Call(
-            func=ast.Attribute(value=ast.Name(id='dill', ctx=ast.Load()), attr='loads', ctx=ast.Load()),
-            args=[ast.Constant(value=self.get_args_as_pickles()[param])])))
+        result.add_node(ast.Return(
+            value=ast.Call(func=ast.Attribute(value=ast.Name(id='dill', ctx=ast.Load()), attr='loads', ctx=ast.Load()),
+                args=[ast.Constant(value=self.get_args_as_pickles()[param])])))
         return result
 
     @property
