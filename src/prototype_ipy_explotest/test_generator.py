@@ -1,7 +1,8 @@
 import ast
+from _ast import Import, ImportFrom
 from abc import ABC
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Any, Generator
 import pathlib
 
 import dill
@@ -89,7 +90,7 @@ class TestGenerator(ABC):
         """
         assert param in self.find_function_params()
         result = PyTestFixture(param)
-        result.add_stmt(ast.Return(value=ast.Call(
+        result.add_node(ast.Return(value=ast.Call(
             func=ast.Attribute(value=ast.Name(id='dill', ctx=ast.Load()), attr='loads', ctx=ast.Load()),
             args=[ast.Constant(value=self.get_args_as_pickles()[param])])))
         return result
@@ -115,6 +116,7 @@ class TestGenerator(ABC):
                 return node.value
         raise ValueError(
             'No call was found in target line number. Make sure that the line is only a call, not an assignment.')
+
 
     def _search_history_for_func_def_with_id(self, id: str) -> ast.FunctionDef | None:
         def search_helper(node: ast.AST) -> ast.FunctionDef | None:
@@ -174,3 +176,22 @@ class TestGenerator(ABC):
             pickled = dill.dumps(evaluated_arg)
             result[p] = pickled
         return result
+
+    @property
+    def imports(self) -> set[ast.Import | ast.ImportFrom]:
+        """
+        Returns all the imports used in the REPL run.
+        """
+        imports: set[ast.Import | ast.ImportFrom] = set()
+
+        def search_helper(node: ast.AST) -> Generator[Import | ImportFrom, Any, None]:
+            for child in ast.walk(node):
+                if isinstance(child, ast.ImportFrom) or isinstance(child, ast.Import):
+                    yield child
+
+        for line in self.history:
+            run = self.history[line]
+            for result in search_helper(run.input):
+                imports.add(result)
+
+        return imports # stub

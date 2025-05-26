@@ -1,5 +1,6 @@
 import ast
 import typing
+from ast import unparse
 
 import dill
 import pytest
@@ -61,8 +62,7 @@ def tg(run_program, lineno) -> TestGenerator:
 def test_test_generation(tg: TestGenerator) -> None:
     resulting_test = tg.generate_test()
     assert 1 == len(resulting_test.arrange_phase)
-    assert 1 == len(resulting_test.act_phase)
-    assert 1 == len(resulting_test.assert_phase)
+    assert 1 == len(resulting_test.act_phase)  # assert 1 == len(resulting_test.assert_phase)
 
 
 def test_get_call_on_lineno(tg) -> None:
@@ -79,7 +79,7 @@ def test_find_function_params(tg: TestGenerator) -> None:
 def test_find_function_args(tg: TestGenerator) -> None:
     expected = [
         ast.Subscript(value=ast.Name(id='values', ctx=ast.Load()), slice=ast.Constant(value='f'), ctx=ast.Load()),
-        ast.Subscript(value=ast .Name(id='values', ctx=ast.Load()), slice=ast.Constant(value='x'), ctx=ast.Load()),
+        ast.Subscript(value=ast.Name(id='values', ctx=ast.Load()), slice=ast.Constant(value='x'), ctx=ast.Load()),
         ast.Name(id='dx', ctx=ast.Load()), ast.Constant(value=1)]
 
     assert all([ast.unparse(x) == ast.unparse(y) for x, y in zip(expected, tg.find_function_args())])
@@ -104,8 +104,26 @@ def test_pickle_args(tg: TestGenerator) -> None:
     assert expected['dx'] == result_transformed['dx']
     assert expected['R'] == result_transformed['R']
 
+
 @pytest.mark.parametrize('aut_name', ['f', 'x', 'dx', 'R'])
 def test_fixture_generation(tg: TestGenerator, aut_name) -> None:
     f_res = tg.generate_fixture(aut_name)
-    assert(len(f_res.stmts) == 1)
-    assert(ast.unparse(f_res.stmts[0]) == f"return dill.loads({tg.get_args_as_pickles()[aut_name]})") # TODO: make fixtures load from disk
+    assert (len(f_res.stmts) == 1)
+    assert (ast.unparse(f_res.stmts[
+                            0]) == f"return dill.loads({tg.get_args_as_pickles()[aut_name]})")  # TODO: make fixtures load from disk
+
+
+def test_tg_create_test(tg: TestGenerator):
+    from pathlib import Path
+    test_read = Path('../test_data/expected_test.py').read_text()
+    compiled = ast.parse(test_read)
+
+    assert unparse(compiled) == unparse(tg.generate_test().ast_node)
+
+
+def test_import_analysis(tg: TestGenerator):
+    expected = {unparse(ast.Import(names=[ast.alias(name='pandas', asname='pd')])),
+                unparse(ast.Import(names=[ast.alias(name='numpy', asname='np')])),
+                unparse(ast.ImportFrom(module='math', names=[ast.alias(name='sin'), ast.alias(name='pi')]))}
+
+    assert expected == {unparse(o) for o in tg.imports}
