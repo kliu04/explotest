@@ -61,6 +61,13 @@ def tg(run_program, lineno) -> TestGenerator:
 
 def test_test_generation(tg: TestGenerator) -> None:
     resulting_test = tg.generate_test()
+    expected_imports = {unparse(ast.Import(names=[ast.alias(name='pandas', asname='pd')])),
+                        unparse(ast.Import(names=[ast.alias(name='numpy', asname='np')])),
+                        unparse(ast.ImportFrom(module='math', names=[ast.alias(name='sin'), ast.alias(name='pi')])),
+                        unparse(ast.Import(names=[ast.alias(name='pytest')]))}
+
+    assert expected_imports == resulting_test.imports
+
     assert 1 == len(resulting_test.arrange_phase)
     assert 1 == len(resulting_test.act_phase)  # assert 1 == len(resulting_test.assert_phase)
 
@@ -127,3 +134,5 @@ def test_import_analysis(tg: TestGenerator):
                 unparse(ast.ImportFrom(module='math', names=[ast.alias(name='sin'), ast.alias(name='pi')]))}
 
     assert expected == {unparse(o) for o in tg.imports}
+
+

@@ -1,9 +1,9 @@
 import ast
+import pathlib
 from _ast import Import, ImportFrom
 from abc import ABC
 from dataclasses import dataclass
 from typing import Iterable, Any, Generator
-import pathlib
 
 import dill
 from IPython import InteractiveShell
@@ -63,7 +63,13 @@ class TestGenerator(ABC):
         """
         :return: Creates a test created from the execution history of our IPython code.
         """
-        return GeneratedTest()
+        call_id = self.call_on_lineno.func.id  # type: ignore
+        target_func = self._search_history_for_func_def_with_id(call_id)
+        test = GeneratedTest([target_func], self.imports, call_id,
+                             [self.generate_fixture(arg) for arg in self.get_args_as_pickles()],
+                             [ast.Assign(targets=[ast.Name(id='result', ctx=ast.Store())],
+                                         value=ast.Call(func=ast.Name(id='foo', ctx=ast.Load())))], [])
+        return test
 
     def write_pickles_to_disk(self, folder: str) -> None:
         folder_path = pathlib.Path(folder)
@@ -71,15 +77,15 @@ class TestGenerator(ABC):
             raise NotADirectoryError('Folder does not exist!')
 
         # for param, pickle_bytes in self.get_args_as_pickles():
-            # self._write_pickle_to_disk(param, pickle_bytes)
-            # pass
+        # self._write_pickle_to_disk(param, pickle_bytes)
+        # pass
 
     def _write_pickle_to_disk(self, param: str, pickle_bytes: str, folder: str) -> None:
         # TODO: implement ts
         # guarantee: pathlib.Path(folder).is_dir()
         # target_path = pathlib.Path(f'{folder}/{param}.pkl')
         # if not target_path:
-            # target_write
+        # target_write
         pass
 
     def generate_fixture(self, param: str) -> PyTestFixture:
@@ -116,7 +122,6 @@ class TestGenerator(ABC):
                 return node.value
         raise ValueError(
             'No call was found in target line number. Make sure that the line is only a call, not an assignment.')
-
 
     def _search_history_for_func_def_with_id(self, id: str) -> ast.FunctionDef | None:
         def search_helper(node: ast.AST) -> ast.FunctionDef | None:
@@ -194,4 +199,4 @@ class TestGenerator(ABC):
             for result in search_helper(run.input):
                 imports.add(result)
 
-        return imports # stub
+        return imports  # stub
