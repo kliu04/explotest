@@ -72,7 +72,7 @@ class TestGenerator(ABC):
         test = GeneratedTest([target_func], self.imports, call_id,
                              [self.generate_fixture(arg) for arg in self.get_args_as_pickles()],
                              [ast.Assign(targets=[ast.Name(id='result', ctx=ast.Store())],
-                                         value=ast.Call(func=ast.Name(id=target_func.name, ctx=ast.Load()), args=[ast.Name(id=f'generated_{a}', ctx=ast.Load()) for a in self.find_function_args()]))], [])
+                                         value=ast.Call(func=ast.Name(id=target_func.name, ctx=ast.Load()), args=[ast.Name(id=f'generated_{a}', ctx=ast.Load()) for a in self.find_function_params()]))], [])
         return test
 
     def write_pickles_to_disk(self, folder: str) -> None:

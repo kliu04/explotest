@@ -64,6 +64,7 @@ def test_test_generation(tg: TestGenerator) -> None:
     expected_imports = {unparse(ast.Import(names=[ast.alias(name='pandas', asname='pd')])),
                         unparse(ast.Import(names=[ast.alias(name='numpy', asname='np')])),
                         unparse(ast.ImportFrom(module='math', names=[ast.alias(name='sin'), ast.alias(name='pi')])),
+                        unparse(ast.Import(names=[ast.alias(name='dill')])),
                         unparse(ast.Import(names=[ast.alias(name='pytest')]))}
 
     assert expected_imports == {unparse(o) for o in resulting_test.imports}
