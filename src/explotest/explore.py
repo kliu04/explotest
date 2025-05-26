@@ -6,6 +6,7 @@ import os
 import sys
 import uuid
 from _ast import alias
+from enum import Enum
 from pathlib import Path
 from typing import Any, Self, Final, Optional
 
@@ -100,170 +101,214 @@ if not is_running_under_test():
     atexit.register(emit_all_tests)
 
 
-def explore(func):
-    if is_running_under_test():
-        return func
+class Mode(Enum):
+    """The mode that ExploTest runs in; one of pickling, unmarshalling, or slicing."""
 
-    filepath = Path(inspect.getfile(func)).parent
-    filename = Path(inspect.getfile(func)).stem
-    qualified_name = func.__qualname__
-    file_recorder = None
-    for recorder in generators:
-        if recorder.filename == filename:
-            file_recorder = recorder
-            break
-    else:
-        file_recorder = TestFileGenerator(filename, filepath)
-        # NOTE: `@explore` on unreached functions (from main),
-        #       do not need to be imported
-        file_recorder.imports.append(ast.Import(names=[alias(name=filename)]))
-        generators.append(file_recorder)
+    PICKLE = 1
+    UNMARSHALL = 2
+    SLICE = 3
 
-    @functools.wraps(func)  # preserve docstrings, etc. of original fn
-    def wrapper(*args, **kwargs):
 
-        test_function = file_recorder.generate_test_function(qualified_name)
-        os.makedirs(f"{filepath}/pickled", exist_ok=True)
+def explore(func=None, mode=Mode.UNMARSHALL):
 
-        arg_spec = inspect.getfullargspec(func)
-        parameters = arg_spec.args
-        arguments = []
-        # need to figure out which kwargs were used to get varkw
-        used_keyword_parameters = set()
-
-        # handle positional parameters
-        remaining_arguments = []
-
-        if len(parameters) > len(args):
-            # too many parameters, not enough args
-            # must have default arguments or is a keyword arg
-            arguments += list(args)
-            for i, missing in enumerate(parameters[len(args) :]):
-                if missing in kwargs:
-                    arguments.append(kwargs[missing])
-                else:
-                    arguments.append(arg_spec.defaults[i])
-                    used_keyword_parameters.add(missing)
-
-        elif len(parameters) < len(args):
-            # need to move rest of args to varargs
-            arguments = args[: len(parameters)]
-            remaining_arguments = args[len(parameters) :]
-        elif len(parameters) == len(args):
-            arguments = args
-
-        assert len(parameters) == len(arguments)
-
-        # handle keyword parameters
-        arguments = list(arguments)
-        for keyword_parameter in arg_spec.kwonlyargs:
-            if keyword_parameter in kwargs:
-                parameters.append(keyword_parameter)
-                arguments.append(kwargs[keyword_parameter])
-                used_keyword_parameters.add(keyword_parameter)
-            else:
-                parameters.append(keyword_parameter)
-                arguments.append(arg_spec.kwonlydefaults[keyword_parameter])
-
-        assert len(parameters) == len(arguments)
-        remaining_kwargs = {
-            k: v for k, v in kwargs.items() if k not in used_keyword_parameters
-        }
-
-        if arg_spec.varargs is not None:
-            parameters.append(arg_spec.varargs)
-            arguments.append(remaining_arguments)
-
-        if arg_spec.varkw is not None:
-            parameters.append(arg_spec.varkw)
-            arguments.append(remaining_kwargs)
-
-        assignments = []
-        for parameter, argument in zip(parameters, arguments):
-
-            # hard-code primitives
-            if is_primitive(argument):
-                assignments.append(
+    def _add_pickled_ast(assignments, pickled_path, parameter):
+        assignments.append(
+            # with open....
+            ast.With(
+                items=[
+                    ast.withitem(
+                        context_expr=ast.Call(
+                            func=ast.Name(id="open", ctx=ast.Load()),
+                            args=[
+                                ast.Constant(value=pickled_path),
+                                ast.Constant(value="rb"),
+                            ],
+                            keywords=[],
+                        ),
+                        optional_vars=ast.Name(id="f", ctx=ast.Store()),
+                    ),
+                ],
+                # load from pickled file
+                body=[
                     ast.Assign(
                         targets=[ast.Name(id=parameter, ctx=ast.Store())],
-                        value=ast.Constant(value=argument),
-                    )
-                )
-            else:
-                # create directory for pickled objects, store argument
-                pickled_id = str(uuid.uuid4().hex)[:8]
-                pickled_path = f"{filepath}/pickled/{parameter}_{pickled_id}.pkl"
-                with open(pickled_path, "wb") as f:
-                    f.write(dill.dumps(argument))
-
-                assignments.append(
-                    # with open....
-                    ast.With(
-                        items=[
-                            ast.withitem(
-                                context_expr=ast.Call(
-                                    func=ast.Name(id="open", ctx=ast.Load()),
-                                    args=[
-                                        ast.Constant(value=pickled_path),
-                                        ast.Constant(value="rb"),
-                                    ],
-                                    keywords=[],
-                                ),
-                                optional_vars=ast.Name(id="f", ctx=ast.Store()),
+                        value=ast.Call(
+                            func=ast.Attribute(
+                                value=ast.Name(id="dill", ctx=ast.Load()),
+                                attr="loads",
+                                ctx=ast.Load(),
                             ),
-                        ],
-                        # load from pickled file
-                        body=[
-                            ast.Assign(
-                                targets=[ast.Name(id=parameter, ctx=ast.Store())],
-                                value=ast.Call(
+                            args=[
+                                ast.Call(
                                     func=ast.Attribute(
-                                        value=ast.Name(id="dill", ctx=ast.Load()),
-                                        attr="loads",
+                                        value=ast.Name(id="f", ctx=ast.Load()),
+                                        attr="read",
                                         ctx=ast.Load(),
-                                    ),
-                                    args=[
-                                        ast.Call(
-                                            func=ast.Attribute(
-                                                value=ast.Name(id="f", ctx=ast.Load()),
-                                                attr="read",
-                                                ctx=ast.Load(),
-                                            )
-                                        )
-                                    ],
-                                    keywords=[],
-                                ),
-                            ),
-                        ],
-                    )
-                )
-
-        # call the function
-        test_call = ast.Expr(
-            value=ast.Call(
-                func=ast.Name(id=f"{filename}.{test_function.name}", ctx=ast.Load()),
-                args=[ast.Name(id=x, ctx=ast.Load()) for x in parameters],
+                                    )
+                                )
+                            ],
+                            keywords=[],
+                        ),
+                    ),
+                ],
             )
         )
 
-        # wrap everything in a function
-        test_def_ast = ast.FunctionDef(
-            name=f"test_{test_function.sanitized_name}_{test_function.count}",
-            args=ast.arguments(
-                posonlyargs=[],
-                args=[],
-                kwonlyargs=[],
-                kw_defaults=[],
-                defaults=[],
-            ),
-            body=[*assignments, test_call],
-            decorator_list=[],
-            returns=None,
-        )
+    def _explore(_func):
+        if is_running_under_test():
+            return _func
 
-        test_function.ast_node = test_def_ast
+        filepath = Path(inspect.getfile(_func)).parent
+        filename = Path(inspect.getfile(_func)).stem
+        qualified_name = _func.__qualname__
+        file_generator = None
+        for generator in generators:
+            if generator.filename == filename:
+                file_generator = generator
+                break
+        else:
+            file_generator = TestFileGenerator(filename, filepath)
+            # NOTE: `@explore` on unreached functions (from main),
+            #       do not need to be imported
+            file_generator.imports.append(ast.Import(names=[alias(name=filename)]))
+            generators.append(file_generator)
 
-        # finally, call and return the function-under-test
-        return func(*args, **kwargs)
+        @functools.wraps(_func)  # preserve docstrings, etc. of original fn
+        def wrapper(*args, **kwargs):
 
-    return wrapper
+            test_function = file_generator.generate_test_function(qualified_name)
+            os.makedirs(f"{filepath}/pickled", exist_ok=True)
+
+            arg_spec = inspect.getfullargspec(_func)
+            parameters = arg_spec.args
+            arguments = []
+            # need to figure out which kwargs were used to get varkw
+            used_keyword_parameters = set()
+
+            # handle positional parameters
+            remaining_arguments = []
+
+            if len(parameters) > len(args):
+                # too many parameters, not enough args
+                # must have default arguments or is a keyword arg
+                arguments += list(args)
+                for i, missing in enumerate(parameters[len(args) :]):
+                    if missing in kwargs:
+                        arguments.append(kwargs[missing])
+                    else:
+                        arguments.append(arg_spec.defaults[i])
+                        used_keyword_parameters.add(missing)
+
+            elif len(parameters) < len(args):
+                # need to move rest of args to varargs
+                arguments = args[: len(parameters)]
+                remaining_arguments = args[len(parameters) :]
+            elif len(parameters) == len(args):
+                arguments = args
+
+            assert len(parameters) == len(arguments)
+
+            # handle keyword parameters
+            arguments = list(arguments)
+            for keyword_parameter in arg_spec.kwonlyargs:
+                if keyword_parameter in kwargs:
+                    parameters.append(keyword_parameter)
+                    arguments.append(kwargs[keyword_parameter])
+                    used_keyword_parameters.add(keyword_parameter)
+                else:
+                    parameters.append(keyword_parameter)
+                    arguments.append(arg_spec.kwonlydefaults[keyword_parameter])
+
+            assert len(parameters) == len(arguments)
+            remaining_kwargs = {
+                k: v for k, v in kwargs.items() if k not in used_keyword_parameters
+            }
+
+            if arg_spec.varargs is not None:
+                parameters.append(arg_spec.varargs)
+                arguments.append(remaining_arguments)
+
+            if arg_spec.varkw is not None:
+                parameters.append(arg_spec.varkw)
+                arguments.append(remaining_kwargs)
+
+            assignments = []
+            for parameter, argument in zip(parameters, arguments):
+
+                # hard-code primitives
+                if is_primitive(argument):
+                    assignments.append(
+                        ast.Assign(
+                            targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                            value=ast.Constant(value=argument),
+                        )
+                    )
+                elif mode == Mode.PICKLE:
+                    # create directory for pickled objects, store argument
+                    pickled_id = str(uuid.uuid4().hex)[:8]
+                    pickled_path = f"{filepath}/pickled/{parameter}_{pickled_id}.pkl"
+                    with open(pickled_path, "wb") as f:
+                        f.write(dill.dumps(argument))
+
+                    # add new assignment AST to assignments
+                    _add_pickled_ast(assignments, pickled_path, parameter)
+                elif mode == Mode.UNMARSHALL:
+                    if inspect.isclass(argument):
+                        pass
+                    elif inspect.ismethod(argument):
+                        pass
+                    elif inspect.isfunction(argument):
+                        pass
+                    elif inspect.isgeneratorfunction(argument):
+                        pass
+                    elif inspect.isgenerator(argument):
+                        pass
+                    elif inspect.iscoroutinefunction(argument):
+                        pass
+                    elif inspect.iscoroutine(argument):
+                        pass
+                    else:
+                        raise Exception(f"Unsupported Argument type: {type(argument)}")
+                else:
+                    pass
+                    # 1. get all the fields of the argument
+                    # 2. construct a new instance of the class
+                    # 3. assign each parameter field to its argument field
+                    # 4. recur if a class
+
+            # call the function
+            test_call = ast.Expr(
+                value=ast.Call(
+                    func=ast.Name(
+                        id=f"{filename}.{test_function.name}", ctx=ast.Load()
+                    ),
+                    args=[ast.Name(id=x, ctx=ast.Load()) for x in parameters],
+                )
+            )
+
+            # wrap everything in a function
+            test_def_ast = ast.FunctionDef(
+                name=f"test_{test_function.sanitized_name}_{test_function.count}",
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[],
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    defaults=[],
+                ),
+                body=[*assignments, test_call],
+                decorator_list=[],
+                returns=None,
+            )
+
+            test_function.ast_node = test_def_ast
+
+            # finally, call and return the function-under-test
+            return _func(*args, **kwargs)
+
+        return wrapper
+
+    if func:
+        return _explore(func)
+
+    return _explore
