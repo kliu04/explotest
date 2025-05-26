@@ -97,4 +97,4 @@ class GeneratedTest:
         """
         Returns the test as a writeable (to disk) and syntactically valid test.
         """
-        return ast.fix_missing_locations(self.ast_node)
+        return ast.unparse(ast.fix_missing_locations(self.ast_node))
