@@ -8,15 +8,22 @@ class PyTestFixture:
     depends_on: list['PyTestFixture'] # the fixtures this test depends on
     # TODO: figure out if and how to distinguish between param vs. non-para
     for_var: str # for which variable is this for? is it a param?
+    stmts: list[ast.stmt]
 
-    def __init__(self):
+    def __init__(self, for_var):
         self.depends_on = []
+        self.for_var = for_var
+        self.stmts = []
+
+    def add_stmt(self, stmt: ast.stmt) -> None:
+        self.stmts.append(stmt)
 
     def __str__(self):
         """
         Returns itself a writeable string of code.
         :return: The code for this fixture. Should be syntactically correct.
         """
+        return ""
 
 class GeneratedTest:
     """

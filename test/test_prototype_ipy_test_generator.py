@@ -14,6 +14,7 @@ def program() -> list[str]:
 from math import sin, pi
 import pandas as pd
 import numpy as np
+
         """, """
 values = pd.read_csv(r"./A17.csv", names=[r"f"])
         """, """
@@ -78,7 +79,7 @@ def test_find_function_params(tg: TestGenerator) -> None:
 def test_find_function_args(tg: TestGenerator) -> None:
     expected = [
         ast.Subscript(value=ast.Name(id='values', ctx=ast.Load()), slice=ast.Constant(value='f'), ctx=ast.Load()),
-        ast.Subscript(value=ast.Name(id='values', ctx=ast.Load()), slice=ast.Constant(value='x'), ctx=ast.Load()),
+        ast.Subscript(value=ast .Name(id='values', ctx=ast.Load()), slice=ast.Constant(value='x'), ctx=ast.Load()),
         ast.Name(id='dx', ctx=ast.Load()), ast.Constant(value=1)]
 
     assert all([ast.unparse(x) == ast.unparse(y) for x, y in zip(expected, tg.find_function_args())])
@@ -102,3 +103,9 @@ def test_pickle_args(tg: TestGenerator) -> None:
     assert all(expected['x'] == result_transformed['x'])
     assert expected['dx'] == result_transformed['dx']
     assert expected['R'] == result_transformed['R']
+
+@pytest.mark.parametrize('aut_name', ['f', 'x', 'dx', 'R'])
+def test_fixture_generation(tg: TestGenerator, aut_name) -> None:
+    f_res = tg.generate_fixture(aut_name)
+    assert(len(f_res.stmts) == 1)
+    assert(ast.unparse(f_res.stmts[0]) == f"return dill.loads({tg.get_args_as_pickles()[aut_name]})") # TODO: make fixtures load from disk

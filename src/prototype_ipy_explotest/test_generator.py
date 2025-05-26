@@ -2,6 +2,7 @@ import ast
 from abc import ABC
 from dataclasses import dataclass
 from typing import Iterable
+import pathlib
 
 import dill
 from IPython import InteractiveShell
@@ -63,6 +64,23 @@ class TestGenerator(ABC):
         """
         return GeneratedTest()
 
+    def write_pickles_to_disk(self, folder: str) -> None:
+        folder_path = pathlib.Path(folder)
+        if not folder_path.is_dir():
+            raise NotADirectoryError('Folder does not exist!')
+
+        # for param, pickle_bytes in self.get_args_as_pickles():
+            # self._write_pickle_to_disk(param, pickle_bytes)
+            # pass
+
+    def _write_pickle_to_disk(self, param: str, pickle_bytes: str, folder: str) -> None:
+        # TODO: implement ts
+        # guarantee: pathlib.Path(folder).is_dir()
+        # target_path = pathlib.Path(f'{folder}/{param}.pkl')
+        # if not target_path:
+            # target_write
+        pass
+
     def generate_fixture(self, param: str) -> PyTestFixture:
         """
         Creates PyTest test fixture (a function) for a specific parameter.
@@ -70,8 +88,11 @@ class TestGenerator(ABC):
         :return:
         """
         assert param in self.find_function_params()
-        return PyTestFixture() # stub
-
+        result = PyTestFixture(param)
+        result.add_stmt(ast.Return(value=ast.Call(
+            func=ast.Attribute(value=ast.Name(id='dill', ctx=ast.Load()), attr='loads', ctx=ast.Load()),
+            args=[ast.Constant(value=self.get_args_as_pickles()[param])])))
+        return result
 
     @property
     def _ast_node_at_invocation_lineno(self) -> ast.Module:
