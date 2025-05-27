@@ -3,14 +3,16 @@ import atexit
 import functools
 import inspect
 import os
-import sys
-import uuid
 from _ast import alias
-from enum import Enum
 from pathlib import Path
-from typing import Any, Self, Final, Optional
+from typing import Self, Final, Optional
 
 import dill  # type: ignore
+
+from explotest import helpers
+from explotest.helpers import Mode
+from explotest.pickle_reconstructor import PickleReconstructor
+from explotest.test_generator import TestGenerator
 
 
 class TestFunction:
@@ -70,23 +72,6 @@ class TestFileGenerator:
             f.write(ast.unparse(module))
 
 
-def is_primitive(x: Any) -> bool:
-    """True iff x is a primitive type (int, float, str, bool) or a list of primitive types."""
-
-    def is_list_of_primitive(lox: list) -> bool:
-        return all(is_primitive(item) for item in lox)
-
-    if isinstance(x, list):
-        return is_list_of_primitive(x)
-
-    return isinstance(x, (int, float, str, bool))
-
-
-# FIXME: hacky
-def is_running_under_test():
-    return "pytest" in sys.modules
-
-
 # keeps track of all files
 generators: list[TestFileGenerator] = []
 
@@ -97,68 +82,19 @@ def emit_all_tests():
 
 
 # call emit_test when program exits
-if not is_running_under_test():
+if not helpers.is_running_under_test():
     atexit.register(emit_all_tests)
 
 
-class Mode(Enum):
-    """The mode that ExploTest runs in; one of pickling, unmarshalling, or slicing."""
-
-    PICKLE = 1
-    UNMARSHALL = 2
-    SLICE = 3
-
-
-def explore(func=None, mode=Mode.UNMARSHALL):
-
-    def _add_unmarshalled_ast(assignments, parameter, argument):
-        pass
+def explore(func=None, mode=Mode.RECONSTRUCT):
 
     def _add_pickled_ast(assignments, pickled_path, parameter):
         assignments.append(
             # with open....
-            ast.With(
-                items=[
-                    ast.withitem(
-                        context_expr=ast.Call(
-                            func=ast.Name(id="open", ctx=ast.Load()),
-                            args=[
-                                ast.Constant(value=pickled_path),
-                                ast.Constant(value="rb"),
-                            ],
-                            keywords=[],
-                        ),
-                        optional_vars=ast.Name(id="f", ctx=ast.Store()),
-                    ),
-                ],
-                # load from pickled file
-                body=[
-                    ast.Assign(
-                        targets=[ast.Name(id=parameter, ctx=ast.Store())],
-                        value=ast.Call(
-                            func=ast.Attribute(
-                                value=ast.Name(id="dill", ctx=ast.Load()),
-                                attr="loads",
-                                ctx=ast.Load(),
-                            ),
-                            args=[
-                                ast.Call(
-                                    func=ast.Attribute(
-                                        value=ast.Name(id="f", ctx=ast.Load()),
-                                        attr="read",
-                                        ctx=ast.Load(),
-                                    )
-                                )
-                            ],
-                            keywords=[],
-                        ),
-                    ),
-                ],
-            )
         )
 
     def _explore(_func):
-        if is_running_under_test():
+        if helpers.is_running_under_test():
             return _func
 
         filepath = Path(inspect.getfile(_func)).parent
@@ -179,131 +115,20 @@ def explore(func=None, mode=Mode.UNMARSHALL):
         @functools.wraps(_func)  # preserve docstrings, etc. of original fn
         def wrapper(*args, **kwargs):
 
-            test_function = file_generator.generate_test_function(qualified_name)
             os.makedirs(f"{filepath}/pickled", exist_ok=True)
             # clear directory
             for root, _, files in os.walk(f"{filepath}/pickled"):
                 for file in files:
                     os.remove(os.path.join(root, file))
 
-            arg_spec = inspect.getfullargspec(_func)
-            parameters = arg_spec.args
-            arguments = []
-            # need to figure out which kwargs were used to get varkw
-            used_keyword_parameters = set()
+            func_signature = inspect.signature(_func)
+            bound_args = func_signature.bind(*args, **kwargs)
+            bound_args.apply_defaults()
 
-            # handle positional parameters
-            remaining_arguments = []
+            TestGenerator(qualified_name)
 
-            if len(parameters) > len(args):
-                # too many parameters, not enough args
-                # must have default arguments or is a keyword arg
-                arguments += list(args)
-                for i, missing in enumerate(parameters[len(args) :]):
-                    if missing in kwargs:
-                        arguments.append(kwargs[missing])
-                    else:
-                        arguments.append(arg_spec.defaults[i])
-                        used_keyword_parameters.add(missing)
-
-            elif len(parameters) < len(args):
-                # need to move rest of args to varargs
-                arguments = args[: len(parameters)]
-                remaining_arguments = args[len(parameters) :]
-            elif len(parameters) == len(args):
-                arguments = args
-
-            assert len(parameters) == len(arguments)
-
-            # handle keyword parameters
-            arguments = list(arguments)
-            for keyword_parameter in arg_spec.kwonlyargs:
-                if keyword_parameter in kwargs:
-                    parameters.append(keyword_parameter)
-                    arguments.append(kwargs[keyword_parameter])
-                    used_keyword_parameters.add(keyword_parameter)
-                else:
-                    parameters.append(keyword_parameter)
-                    arguments.append(arg_spec.kwonlydefaults[keyword_parameter])
-
-            assert len(parameters) == len(arguments)
-            remaining_kwargs = {
-                k: v for k, v in kwargs.items() if k not in used_keyword_parameters
-            }
-
-            if arg_spec.varargs is not None:
-                parameters.append(arg_spec.varargs)
-                arguments.append(remaining_arguments)
-
-            if arg_spec.varkw is not None:
-                parameters.append(arg_spec.varkw)
-                arguments.append(remaining_kwargs)
-
-            assignments = []
-            for parameter, argument in zip(parameters, arguments):
-
-                # hard-code primitives
-                if is_primitive(argument):
-                    assignments.append(
-                        ast.Assign(
-                            targets=[ast.Name(id=parameter, ctx=ast.Store())],
-                            value=ast.Constant(value=argument),
-                        )
-                    )
-                elif mode == Mode.PICKLE:
-                    # create directory for pickled objects, store argument
-                    pickled_id = str(uuid.uuid4().hex)[:8]
-                    pickled_path = f"{filepath}/pickled/{parameter}_{pickled_id}.pkl"
-                    with open(pickled_path, "wb") as f:
-                        f.write(dill.dumps(argument))
-
-                    # add new assignment AST to assignments
-                    _add_pickled_ast(assignments, pickled_path, parameter)
-                elif mode == Mode.UNMARSHALL:
-                    if hasattr(argument, "__class__"):
-
-                        def unmarshall_object(obj) -> object:
-                            """returns a clone of argument"""
-                            clone = type(obj)()
-                            for attr_key, attr_val in obj.__dict__.items():
-                                if is_primitive(attr_val):
-                                    setattr(clone, attr_key, attr_val)
-                                elif hasattr(
-                                    attr_val, "__class__"
-                                ):  # not sure this works
-                                    setattr(
-                                        clone, attr_key, unmarshall_object(attr_val)
-                                    )
-                                else:
-                                    raise Exception(
-                                        f"Currently unsupported type. {type(attr_val)}"
-                                    )
-                            # TODO: lists
-                            return clone
-
-                        unmarshall_object(argument)
-                    elif inspect.isclass(argument):
-                        pass
-                    elif inspect.ismethod(argument):
-                        pass
-                    elif inspect.isfunction(argument):
-                        pass
-                    elif inspect.isgeneratorfunction(argument):
-                        pass
-                    elif inspect.isgenerator(argument):
-                        pass
-                    elif inspect.iscoroutinefunction(argument):
-                        pass
-                    elif inspect.iscoroutine(argument):
-                        pass
-                    else:
-                        raise Exception(f"Unsupported Argument Type: {type(argument)}")
-                else:
-                    pass
-                    # 1. get all the fields of the argument
-                    # 2. construct a new instance of the class
-                    # 3. assign each parameter field to its argument field
-                    # 4. recur if a class
+            for parameter, argument in bound_args.arguments.items():
+                PickleReconstructor(parameter, argument, filepath)
 
             # call the function
             test_call = ast.Expr(
