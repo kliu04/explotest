@@ -76,14 +76,15 @@ class GeneratedTest:
         for fixture in self.arrange_phase:
             statements.append(fixture.ast_node)
 
+        for defn in self.definitions:
+            statements.append(defn)
+
         statements.append(self.test_function)
 
         return ast.fix_missing_locations(ast.Module(body=statements))
 
-
-
     @property
-    def test_function(self) -> ast.FunctionDef: # right now, test_function requests all the fixtures.
+    def test_function(self) -> ast.FunctionDef:  # right now, test_function requests all the fixtures.
         generated_fn = ast.FunctionDef(name=f'test_{self.for_func_name}', args=ast.arguments(
             args=[ast.arg(arg=fixture.ast_node.name) for fixture in self.arrange_phase]), body=self.act_phase)
         generated_fn = ast.fix_missing_locations(generated_fn)
@@ -91,7 +92,8 @@ class GeneratedTest:
 
     @property
     def imports(self) -> set[ast.Import | ast.ImportFrom]:
-        return {ast.Import(names=[ast.alias(name='pytest')]), ast.Import(names=[ast.alias(name='dill')])} | self.code_imports
+        return {ast.Import(names=[ast.alias(name='pytest')]),
+                ast.Import(names=[ast.alias(name='dill')])} | self.code_imports
 
     def __str__(self):
         """

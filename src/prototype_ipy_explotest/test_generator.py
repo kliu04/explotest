@@ -26,7 +26,11 @@ class IPythonExecutionHistory:
         for session, lineno, in_out in range_result:
             input = in_out[0]
             output = in_out[1]
-            self.d[lineno] = IPythonLineRun(session, ast.parse(input), output)
+            try:
+                parsed_input = ast.parse(input)
+                self.d[lineno] = IPythonLineRun(session, parsed_input, output)
+            except SyntaxError:
+                print(f'Error on line: {lineno} invalid syntax, ignoring.')
 
     def __getitem__(self, item: int):
         return self.d[item]
@@ -37,6 +41,9 @@ class IPythonExecutionHistory:
     def __next__(self):
         return next(self.__iter__())
 
+    def __len__(self):
+        return len(self.d)
+
 
 class TestGenerator(ABC):
     shell: InteractiveShell
@@ -46,14 +53,15 @@ class TestGenerator(ABC):
 
     def __init__(self, shell: InteractiveShell, invocation_lineno: int, target_lines: tuple[int, int] = (-1, -1)):
         self.shell = shell
+        self.target_lines = (0, invocation_lineno) if target_lines == (-1, -1) else target_lines
+
+        self.invocation_lineno = invocation_lineno
         session: Iterable[tuple[int, int, tuple[str, str | None]]] = list(shell.history_manager.get_range(output=True))
         self.history = IPythonExecutionHistory(session)
-        self.invocation_lineno = invocation_lineno
-        self.target_lines = (0, invocation_lineno) if target_lines == (-1, -1) else target_lines
 
         """
         Initializes a test generator with the given shell.
-        Creates a test for specific function invocation on the line provided.
+        Creates a test for specific function invocation on the line provided. 
         :param shell: The shell to read execution history from
         :param invocation_lineno: The line that the user called the function-to-test on.
         :param target_lines: The lines to read to "try" to read from. In pickle mode, probably reading all lines is good.
@@ -72,7 +80,9 @@ class TestGenerator(ABC):
         test = GeneratedTest([target_func], self.imports, call_id,
                              [self.generate_fixture(arg) for arg in self.get_args_as_pickles()],
                              [ast.Assign(targets=[ast.Name(id='result', ctx=ast.Store())],
-                                         value=ast.Call(func=ast.Name(id=target_func.name, ctx=ast.Load()), args=[ast.Name(id=f'generated_{a}', ctx=ast.Load()) for a in self.find_function_params()]))], [])
+                                         value=ast.Call(func=ast.Name(id=target_func.name, ctx=ast.Load()),
+                                                        args=[ast.Name(id=f'generated_{a}', ctx=ast.Load()) for a in
+                                                              self.find_function_params()]))], [])
         return test
 
     def write_pickles_to_disk(self, folder: str) -> None:
@@ -100,7 +110,7 @@ class TestGenerator(ABC):
         result = PyTestFixture(param)
         result.add_node(ast.Return(
             value=ast.Call(func=ast.Attribute(value=ast.Name(id='dill', ctx=ast.Load()), attr='loads', ctx=ast.Load()),
-                args=[ast.Constant(value=self.get_args_as_pickles()[param])])))
+                           args=[ast.Constant(value=self.get_args_as_pickles()[param])])))
         return result
 
     @property

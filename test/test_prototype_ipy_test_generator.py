@@ -140,3 +140,7 @@ def test_import_analysis(tg: TestGenerator):
 
 
 
+@pytest.mark.skip
+def test_filtering_ctor(run_program, lineno):
+    tg = TestGenerator(run_program, lineno, (6, 8))
+    assert len(tg.history) == 3

@@ -1,8 +1,10 @@
 import IPython
-from IPython.core.magic_arguments import magic_arguments
+from IPython.core.magic_arguments import magic_arguments, argument, parse_argstring
+
+from .test_generator import TestGenerator
 
 
-def generate_test(ipython: IPython.InteractiveShell):
+def generate_tests_wrapper(ipython: IPython.InteractiveShell):
     @magic_arguments()
     @argument(
         "-f",
@@ -16,3 +18,31 @@ def generate_test(ipython: IPython.InteractiveShell):
         confirmation.
         """,
     )
+    @argument(
+        '--lineno',
+        dest='lineno',
+        help="""
+        Target line number.
+        """
+    )
+    # @argument(
+    #     '--start',
+    #     dest='start',
+    #     help="""
+    #     Start reading lines from here
+    #     """
+    # )
+    # @argument(
+    #     '--end',
+    #     dest='end',
+    #     help="""
+    #     End reading lines here (inclusive)
+    #     """
+    # )
+    def generate_tests_wrapped(parameter_s=''):
+        args = parse_argstring(generate_tests_wrapped, parameter_s)
+        with open(args.filename, 'w+') as file:
+            generated_test = TestGenerator(ipython, int(args.lineno)).generate_test()
+            file.write(str(generated_test))
+
+    return generate_tests_wrapped
