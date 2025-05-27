@@ -6,7 +6,7 @@ from .system_provider import SystemProvider  # type: ignore
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 -m explotest <filename>")
+        print("Usage: python3 -m old_explotest <filename>")
         sys.exit(1)
     target = sys.argv[1]
     sys.argv = sys.argv[1:]
