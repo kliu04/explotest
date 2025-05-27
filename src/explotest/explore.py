@@ -111,6 +111,9 @@ class Mode(Enum):
 
 def explore(func=None, mode=Mode.UNMARSHALL):
 
+    def _add_unmarshalled_ast(assignments, parameter, argument):
+        pass
+
     def _add_pickled_ast(assignments, pickled_path, parameter):
         assignments.append(
             # with open....
@@ -178,6 +181,10 @@ def explore(func=None, mode=Mode.UNMARSHALL):
 
             test_function = file_generator.generate_test_function(qualified_name)
             os.makedirs(f"{filepath}/pickled", exist_ok=True)
+            # clear directory
+            for root, _, files in os.walk(f"{filepath}/pickled"):
+                for file in files:
+                    os.remove(os.path.join(root, file))
 
             arg_spec = inspect.getfullargspec(_func)
             parameters = arg_spec.args
@@ -253,7 +260,29 @@ def explore(func=None, mode=Mode.UNMARSHALL):
                     # add new assignment AST to assignments
                     _add_pickled_ast(assignments, pickled_path, parameter)
                 elif mode == Mode.UNMARSHALL:
-                    if inspect.isclass(argument):
+                    if hasattr(argument, "__class__"):
+
+                        def unmarshall_object(obj) -> object:
+                            """returns a clone of argument"""
+                            clone = type(obj)()
+                            for attr_key, attr_val in obj.__dict__.items():
+                                if is_primitive(attr_val):
+                                    setattr(clone, attr_key, attr_val)
+                                elif hasattr(
+                                    attr_val, "__class__"
+                                ):  # not sure this works
+                                    setattr(
+                                        clone, attr_key, unmarshall_object(attr_val)
+                                    )
+                                else:
+                                    raise Exception(
+                                        f"Currently unsupported type. {type(attr_val)}"
+                                    )
+                            # TODO: lists
+                            return clone
+
+                        unmarshall_object(argument)
+                    elif inspect.isclass(argument):
                         pass
                     elif inspect.ismethod(argument):
                         pass
@@ -268,7 +297,7 @@ def explore(func=None, mode=Mode.UNMARSHALL):
                     elif inspect.iscoroutine(argument):
                         pass
                     else:
-                        raise Exception(f"Unsupported Argument type: {type(argument)}")
+                        raise Exception(f"Unsupported Argument Type: {type(argument)}")
                 else:
                     pass
                     # 1. get all the fields of the argument
