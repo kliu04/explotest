@@ -1,12 +1,14 @@
 import ast
+import pathlib
+from _ast import Import, ImportFrom
 from abc import ABC
 from dataclasses import dataclass
-import dill
-from typing import Iterable
+from typing import Iterable, Any, Generator
 
+import dill
 from IPython import InteractiveShell
 
-from src.prototype_ipy_explotest.generated_test import GeneratedTest
+from src.prototype_ipy_explotest.generated_test import GeneratedTest, PyTestFixture
 
 
 @dataclass
@@ -24,7 +26,11 @@ class IPythonExecutionHistory:
         for session, lineno, in_out in range_result:
             input = in_out[0]
             output = in_out[1]
-            self.d[lineno] = IPythonLineRun(session, ast.parse(input), output)
+            try:
+                parsed_input = ast.parse(input)
+                self.d[lineno] = IPythonLineRun(session, parsed_input, output)
+            except SyntaxError:
+                print(f'Error on line: {lineno} invalid syntax, ignoring.')
 
     def __getitem__(self, item: int):
         return self.d[item]
@@ -35,6 +41,9 @@ class IPythonExecutionHistory:
     def __next__(self):
         return next(self.__iter__())
 
+    def __len__(self):
+        return len(self.d)
+
 
 class TestGenerator(ABC):
     shell: InteractiveShell
@@ -44,14 +53,15 @@ class TestGenerator(ABC):
 
     def __init__(self, shell: InteractiveShell, invocation_lineno: int, target_lines: tuple[int, int] = (-1, -1)):
         self.shell = shell
+        self.target_lines = (0, invocation_lineno) if target_lines == (-1, -1) else target_lines
+
+        self.invocation_lineno = invocation_lineno
         session: Iterable[tuple[int, int, tuple[str, str | None]]] = list(shell.history_manager.get_range(output=True))
         self.history = IPythonExecutionHistory(session)
-        self.invocation_lineno = invocation_lineno
-        self.target_lines = (0, invocation_lineno) if target_lines == (-1, -1) else target_lines
 
         """
         Initializes a test generator with the given shell.
-        Creates a test for specific function invocation on the line provided.
+        Creates a test for specific function invocation on the line provided. 
         :param shell: The shell to read execution history from
         :param invocation_lineno: The line that the user called the function-to-test on.
         :param target_lines: The lines to read to "try" to read from. In pickle mode, probably reading all lines is good.
@@ -61,7 +71,47 @@ class TestGenerator(ABC):
         """
         :return: Creates a test created from the execution history of our IPython code.
         """
-        return GeneratedTest()
+        call_id = self.call_on_lineno.func.id  # type: ignore
+        target_func = self._search_history_for_func_def_with_id(call_id)
+
+        if target_func is None:
+            raise ValueError(f'No function definition found on target line. Target line: {self.invocation_lineno}')
+
+        test = GeneratedTest([target_func], self.imports, call_id,
+                             [self.generate_fixture(arg) for arg in self.get_args_as_pickles()],
+                             [ast.Assign(targets=[ast.Name(id='result', ctx=ast.Store())],
+                                         value=ast.Call(func=ast.Name(id=target_func.name, ctx=ast.Load()),
+                                                        args=[ast.Name(id=f'generated_{a}', ctx=ast.Load()) for a in
+                                                              self.find_function_params()]))], [])
+        return test
+
+    def write_pickles_to_disk(self, folder: str) -> None:
+        folder_path = pathlib.Path(folder)
+        if not folder_path.is_dir():
+            raise NotADirectoryError('Folder does not exist!')
+
+        # for param, pickle_bytes in self.get_args_as_pickles():  # self._write_pickle_to_disk(param, pickle_bytes)  # pass
+
+    def _write_pickle_to_disk(self, param: str, pickle_bytes: str, folder: str) -> None:
+        # TODO: implement ts
+        # guarantee: pathlib.Path(folder).is_dir()
+        # target_path = pathlib.Path(f'{folder}/{param}.pkl')
+        # if not target_path:
+        # target_write
+        pass
+
+    def generate_fixture(self, param: str) -> PyTestFixture:
+        """
+        Creates PyTest test fixture (a function) for a specific parameter.
+        :param param: The target parameter.
+        :return:
+        """
+        assert param in self.find_function_params()
+        result = PyTestFixture(param)
+        result.add_node(ast.Return(
+            value=ast.Call(func=ast.Attribute(value=ast.Name(id='dill', ctx=ast.Load()), attr='loads', ctx=ast.Load()),
+                           args=[ast.Constant(value=self.get_args_as_pickles()[param])])))
+        return result
 
     @property
     def _ast_node_at_invocation_lineno(self) -> ast.Module:
@@ -80,7 +130,7 @@ class TestGenerator(ABC):
         :raises: Exception (type TBA) if there is no call on lineno
         """
         for node in self._ast_node_at_invocation_lineno.body:
-            if type(node) == ast.Expr and type(node.value) == ast.Call:
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
                 return node.value
         raise ValueError(
             'No call was found in target line number. Make sure that the line is only a call, not an assignment.')
@@ -88,7 +138,7 @@ class TestGenerator(ABC):
     def _search_history_for_func_def_with_id(self, id: str) -> ast.FunctionDef | None:
         def search_helper(node: ast.AST) -> ast.FunctionDef | None:
             for child in ast.walk(node):
-                if isinstance(node, ast.FunctionDef) and child.name == id:
+                if isinstance(child, ast.FunctionDef) and child.name == id:
                     return child
             return None
 
@@ -100,28 +150,28 @@ class TestGenerator(ABC):
         """
         for line in self.history:
             execution_result = self.history[line].input
+
             function_def_at_result = search_helper(execution_result)
             if function_def_at_result is not None:
                 return function_def_at_result
         return None
 
-
-    def find_function_params(self) -> set[str]:
+    def find_function_params(self) -> list[str]:
         """
         Finds the parameters that the function-under-test contains and their types
         :return: A dictionary that maps parameter names to their types.
         """
 
-        result: set[str] = set()
+        result: list[str] = []
 
         call_id = self.call_on_lineno.func.id  # type: ignore
         target_func = self._search_history_for_func_def_with_id(call_id)
         if target_func is None:
-            raise ValueError
+            raise ValueError('Function definition not found.')
 
         # TODO: support varargs & kwargs
         for arg in target_func.args.posonlyargs + target_func.args.args + target_func.args.kwonlyargs:
-            result.add(arg.arg)
+            result.append(arg.arg)
 
         return result
 
@@ -139,7 +189,26 @@ class TestGenerator(ABC):
         args = self.find_function_args()
         result: dict[str, str] = {}
         for p, a in zip(params, args):
-            evaluated_arg = self.shell.ev(a)
+            evaluated_arg = self.shell.ev(ast.unparse(a))
             pickled = dill.dumps(evaluated_arg)
             result[p] = pickled
         return result
+
+    @property
+    def imports(self) -> set[ast.Import | ast.ImportFrom]:
+        """
+        Returns all the imports used in the REPL run.
+        """
+        imports: set[ast.Import | ast.ImportFrom] = set()
+
+        def search_helper(node: ast.AST) -> Generator[Import | ImportFrom, Any, None]:
+            for child in ast.walk(node):
+                if isinstance(child, ast.ImportFrom) or isinstance(child, ast.Import):
+                    yield child
+
+        for line in self.history:
+            run = self.history[line]
+            for result in search_helper(run.input):
+                imports.add(result)
+
+        return imports  # stub
