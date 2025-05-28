@@ -3,12 +3,11 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict
 
-from src.explotest import Mode
-from src.explotest import reconstructor
 from src.explotest.argument_reconstruction_reconstructor import (
     ArgumentReconstructionReconstructor,
 )
 from src.explotest.generated_test import GeneratedTest
+from src.explotest.helpers import Mode
 from src.explotest.pickle_reconstructor import PickleReconstructor
 from src.explotest.reconstructor import Reconstructor
 
@@ -21,6 +20,7 @@ class TestGenerator:
 
     def __init__(self, function_name: str, file_path: Path, mode: Mode):
         self.function_name = function_name
+        self.file_path = file_path
         match mode:
             case Mode.RECONSTRUCT:
                 self.reconstructor = ArgumentReconstructionReconstructor()
@@ -32,18 +32,16 @@ class TestGenerator:
                 raise Exception(f"Unknown Mode: {mode}")
 
     def generate(self, bindings: Dict[str, object]) -> GeneratedTest:
-        # TODO: call phase
         params = list(bindings.keys())
         filename = self.file_path.stem
         imports = []
 
         # if in pickle mode, need to import dill to unpickle
-        if isinstance(reconstructor, PickleReconstructor):
+        if isinstance(self.reconstructor, PickleReconstructor):
             imports.append(ast.Import(names=[alias(name="dill")]))
 
         imports.append(ast.Import(names=[alias(name=filename)]))
 
-        # need to be like ast.Assign (ast.Call ...)
 
         return GeneratedTest(
             imports,
