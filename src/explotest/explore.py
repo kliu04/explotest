@@ -3,14 +3,14 @@ import inspect
 import os
 from pathlib import Path
 
-from explotest import Mode, helpers
-from explotest.test_generator import TestGenerator
+from src.explotest.helpers import Mode, is_running_under_test
+from src.explotest.test_generator import TestGenerator
 
 
-def explore(func=None, mode=Mode.RECONSTRUCT):
+def explore(func=None, mode=Mode.PICKLE):
 
     def _explore(_func):
-        if helpers.is_running_under_test():
+        if is_running_under_test():
             return _func
 
         filepath = Path(inspect.getfile(_func)).parent
@@ -29,7 +29,9 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
             bound_args = func_signature.bind(*args, **kwargs)
             bound_args.apply_defaults()
 
-            tg = TestGenerator(qualified_name, mode)
+            tg = TestGenerator(
+                qualified_name, Path(inspect.getfile(_func)).parent, mode
+            )
             tg.generate(bound_args.arguments)
 
             # finally, call and return the function-under-test
