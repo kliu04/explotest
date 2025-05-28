@@ -12,12 +12,13 @@ from src.explotest.reconstructor import Reconstructor
 
 class PickleReconstructor(Reconstructor):
 
-    filepath: Path
+    filepath: Path  # path to write the pickled files to
 
     def __init__(self, filepath):
         self.filepath = filepath
 
     def asts(self, bindings) -> list[PyTestFixture]:
+        """:returns a list of PyTestFixture, which represents each parameter : argument pair"""
         fixtures = []
         for parameter, argument in bindings.items():
             if is_primitive(argument):
@@ -26,8 +27,11 @@ class PickleReconstructor(Reconstructor):
                         [],
                         parameter,
                         [
+                            # need to cast here to not confuse mypy
                             cast(
                                 ast.AST,
+                                # assign each primitive its argument as a constant
+                                # TODO: check if this works for collections
                                 ast.Assign(
                                     targets=[ast.Name(id=parameter, ctx=ast.Store())],
                                     value=ast.Constant(value=argument),
@@ -38,7 +42,10 @@ class PickleReconstructor(Reconstructor):
                 )
 
             else:
+                # create a unique ID for the pickled object
                 pickled_id = str(uuid.uuid4().hex)[:8]
+
+                # write the pickled object to file
                 pickled_path = f"{self.filepath}/pickled/{parameter}_{pickled_id}.pkl"
                 with open(pickled_path, "wb") as f:
                     f.write(dill.dumps(argument))
@@ -50,6 +57,7 @@ class PickleReconstructor(Reconstructor):
                         [
                             cast(
                                 ast.AST,
+                                # with open(pickled_path, "rb") as f:
                                 ast.With(
                                     items=[
                                         ast.withitem(
@@ -69,6 +77,7 @@ class PickleReconstructor(Reconstructor):
                                         )
                                     ],
                                     body=[
+                                        # param = dill.loads(f.read())
                                         ast.Assign(
                                             targets=[
                                                 ast.Name(id=parameter, ctx=ast.Store())

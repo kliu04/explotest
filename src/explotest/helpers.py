@@ -26,4 +26,5 @@ def is_primitive(x: Any) -> bool:
 
 
 def is_running_under_test():
+    """Returns True iff the program-under-test is a test file. (Currently only supports pytest)"""
     return "pytest" in sys.modules
