@@ -22,22 +22,22 @@ class PickleReconstructor(Reconstructor):
         fixtures = []
         for parameter, argument in bindings.items():
             if is_primitive(argument):
+                # need to cast here to not confuse mypy
+                generated_ast = cast(
+                    ast.AST,
+                    # assign each primitive its argument as a constant
+                    ast.Assign(
+                        targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                        value=ast.Constant(value=argument),
+                    ),
+                )
+                # add lineno and col_offset attributes
+                generated_ast = ast.fix_missing_locations(generated_ast)
                 fixtures.append(
                     PyTestFixture(
                         [],
                         parameter,
-                        [
-                            # need to cast here to not confuse mypy
-                            cast(
-                                ast.AST,
-                                # assign each primitive its argument as a constant
-                                # TODO: check if this works for collections
-                                ast.Assign(
-                                    targets=[ast.Name(id=parameter, ctx=ast.Store())],
-                                    value=ast.Constant(value=argument),
-                                ),
-                            )
-                        ],
+                        [generated_ast],
                     )
                 )
 
@@ -50,66 +50,58 @@ class PickleReconstructor(Reconstructor):
                 with open(pickled_path, "wb") as f:
                     f.write(dill.dumps(argument))
 
+                generated_ast = cast(
+                    ast.AST,
+                    # with open(pickled_path, "rb") as f:
+                    ast.With(
+                        items=[
+                            ast.withitem(
+                                context_expr=ast.Call(
+                                    func=ast.Name(id="open", ctx=ast.Load()),
+                                    args=[
+                                        ast.Constant(value=pickled_path),
+                                        ast.Constant(value="rb"),
+                                    ],
+                                    keywords=[],
+                                ),
+                                optional_vars=ast.Name(id="f", ctx=ast.Store()),
+                            )
+                        ],
+                        body=[
+                            # param = dill.loads(f.read())
+                            ast.Assign(
+                                targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                                value=ast.Call(
+                                    func=ast.Attribute(
+                                        value=ast.Name(id="dill", ctx=ast.Load()),
+                                        attr="loads",
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[
+                                        ast.Call(
+                                            func=ast.Attribute(
+                                                value=ast.Name(id="f", ctx=ast.Load()),
+                                                attr="read",
+                                                ctx=ast.Load(),
+                                            ),
+                                            args=[],
+                                            keywords=[],
+                                        )
+                                    ],
+                                    keywords=[],
+                                ),
+                            )
+                        ],
+                    ),
+                )
+
+                generated_ast = ast.fix_missing_locations(generated_ast)
+
                 fixtures.append(
                     PyTestFixture(
                         [],
                         parameter,
-                        [
-                            cast(
-                                ast.AST,
-                                # with open(pickled_path, "rb") as f:
-                                ast.With(
-                                    items=[
-                                        ast.withitem(
-                                            context_expr=ast.Call(
-                                                func=ast.Name(
-                                                    id="open", ctx=ast.Load()
-                                                ),
-                                                args=[
-                                                    ast.Constant(value=pickled_path),
-                                                    ast.Constant(value="rb"),
-                                                ],
-                                                keywords=[],
-                                            ),
-                                            optional_vars=ast.Name(
-                                                id="f", ctx=ast.Store()
-                                            ),
-                                        )
-                                    ],
-                                    body=[
-                                        # param = dill.loads(f.read())
-                                        ast.Assign(
-                                            targets=[
-                                                ast.Name(id=parameter, ctx=ast.Store())
-                                            ],
-                                            value=ast.Call(
-                                                func=ast.Attribute(
-                                                    value=ast.Name(
-                                                        id="dill", ctx=ast.Load()
-                                                    ),
-                                                    attr="loads",
-                                                    ctx=ast.Load(),
-                                                ),
-                                                args=[
-                                                    ast.Call(
-                                                        func=ast.Attribute(
-                                                            value=ast.Name(
-                                                                id="f", ctx=ast.Load()
-                                                            ),
-                                                            attr="read",
-                                                            ctx=ast.Load(),
-                                                        ),
-                                                        args=[],
-                                                        keywords=[],
-                                                    )
-                                                ],
-                                                keywords=[],
-                                            ),
-                                        )
-                                    ],
-                                ),
-                            )
-                        ],
+                        [generated_ast],
                     )
                 )
         return fixtures
