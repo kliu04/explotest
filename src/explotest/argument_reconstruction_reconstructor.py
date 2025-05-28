@@ -1,11 +1,8 @@
-import ast
-from dataclasses import dataclass
-
+from explotest.pytest_fixture import PyTestFixture
 from src.explotest.reconstructor import Reconstructor
 
 
-@dataclass
 class ArgumentReconstructionReconstructor(Reconstructor):
-    @property
-    def asts(self) -> list[ast.AST]:
-        pass
+
+    def asts(self, bindings) -> list[PyTestFixture]:
+        return []
