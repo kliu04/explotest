@@ -1,4 +1,4 @@
-from explotest.pytest_fixture import PyTestFixture
+from src.explotest.pytest_fixture import PyTestFixture
 from src.explotest.reconstructor import Reconstructor
 
 

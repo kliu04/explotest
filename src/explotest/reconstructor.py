@@ -1,7 +1,7 @@
 import abc
 from abc import abstractmethod
 
-from explotest.pytest_fixture import PyTestFixture
+from src.explotest.pytest_fixture import PyTestFixture
 
 
 class Reconstructor(abc.ABC):

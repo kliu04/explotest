@@ -5,8 +5,8 @@ from typing import cast
 
 import dill  # type: ignore
 
-from explotest.helpers import is_primitive
-from explotest.pytest_fixture import PyTestFixture
+from src.explotest.helpers import is_primitive
+from src.explotest.pytest_fixture import PyTestFixture
 from src.explotest.reconstructor import Reconstructor
 
 
