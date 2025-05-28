@@ -13,7 +13,6 @@ from src.explotest.reconstructor import Reconstructor
 
 
 class TestGenerator:
-
     function_name: str
     file_path: Path
     reconstructor: Reconstructor

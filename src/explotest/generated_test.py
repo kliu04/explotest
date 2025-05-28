@@ -10,6 +10,7 @@ class GeneratedTest:
     fixtures: list[PyTestFixture]
     act_phase: ast.Assign
     asserts: list[ast.Assert]  # probably gonna be empty...
+    definitions: list[ast.FunctionDef] # for REPL
 
     @property
     def ast_node(self) -> ast.Module: ...
