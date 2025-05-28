@@ -14,7 +14,6 @@ class PickleReconstructor(Reconstructor):
 
     filepath: Path
 
-    # TODO: create fixture objects
     def asts(self, bindings) -> list[PyTestFixture]:
         fixtures = []
         for parameter, argument in bindings.items():
