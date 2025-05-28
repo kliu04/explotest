@@ -7,7 +7,7 @@ from src.explotest.helpers import Mode, is_running_under_test
 from src.explotest.test_generator import TestGenerator
 
 
-def explore(func=None, mode=Mode.RECONSTRUCT):
+def explore(func=None, mode=Mode.PICKLE):
 
     def _explore(_func):
         if is_running_under_test():

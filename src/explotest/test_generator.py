@@ -25,7 +25,7 @@ class TestGenerator:
             case Mode.RECONSTRUCT:
                 self.reconstructor = ArgumentReconstructionReconstructor()
             case Mode.PICKLE:
-                self.reconstructor = PickleReconstructor()
+                self.reconstructor = PickleReconstructor(file_path)
             case Mode.SLICE:
                 raise NotImplementedError(f"Slicing is currently not supported.")
             case _:
@@ -42,10 +42,12 @@ class TestGenerator:
 
         imports.append(ast.Import(names=[alias(name=filename)]))
 
+        asts = self.reconstructor.asts(bindings)
+        print(asts)
 
         return GeneratedTest(
             imports,
-            self.reconstructor.asts(bindings),
+            asts,
             ast.Assign(
                 targets=[ast.Name(id="return_value", ctx=ast.Store())],
                 value=ast.Call(
