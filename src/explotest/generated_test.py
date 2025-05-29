@@ -28,11 +28,14 @@ class GeneratedTest:
         The "act" phase of the arrange, act and assert phases of a unit test.
         """
         need_to_request_fixtures_for_these_args = self._find_arguments_passed_into_assign_call()
+        requested_fixtures = [ast.arg(self._request_fixture(a)) for a in need_to_request_fixtures_for_these_args]
 
-        return ast.fix_missing_locations(ast.FunctionDef(name=f'test_{self.fut_node.name}', args=ast.arguments(
-            args=[ast.arg(self._request_fixture(a)) for a in need_to_request_fixtures_for_these_args]),
-                                                         body=(self.decompose_steps() + [
-                                                             self.act_phase] + self.asserts)))
+        generated_defn = ast.FunctionDef(name=f'test_{self.fut_node.name}', args=ast.arguments(
+            args=requested_fixtures),
+                                         body=(self.decompose_steps() + [
+                                             self.act_phase] + self.asserts))
+
+        return ast.fix_missing_locations(generated_defn) # need to do ts to allow writing
 
     def decompose_steps(self) -> list[ast.Assign]:
         """
