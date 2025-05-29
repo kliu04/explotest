@@ -49,6 +49,7 @@ def traverse_asts(target: str) -> list[ast.AST]:
 
         return imports
 
+
     def get_modules_origin(imports: list[str]) -> list[str]:
         """
         Get file path of imported modules.
