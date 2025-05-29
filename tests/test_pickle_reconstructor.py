@@ -60,5 +60,15 @@ def test_pickle_reconstructor_object(setup):
     assert len(asts) == 1
     assert asts[0].depends == []
     assert asts[0].parameter == "f"
-    pattern = r"with open\(.*\) as f:\s+f = dill\.loads\(f\.read\(\)\)"
+    pattern = r"with open\(..*\) as f:\s+f = dill\.loads\(f\.read\(\)\)"
+    assert re.search(pattern, ast.unparse(asts[0].body[0]))
+
+
+def test_pickle_reconstructor_lambda(setup):
+    asts = setup.asts({"f": lambda x: x + 1})
+
+    assert len(asts) == 1
+    assert asts[0].depends == []
+    assert asts[0].parameter == "f"
+    pattern = r"with open\(..*\) as f:\s+f = dill\.loads\(f\.read\(\)\)"
     assert re.search(pattern, ast.unparse(asts[0].body[0]))

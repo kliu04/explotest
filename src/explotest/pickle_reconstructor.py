@@ -22,23 +22,8 @@ class PickleReconstructor(Reconstructor):
         fixtures = []
         for parameter, argument in bindings.items():
             if is_primitive(argument):
-                # need to cast here to not confuse mypy
-                generated_ast = cast(
-                    ast.AST,
-                    # assign each primitive its argument as a constant
-                    ast.Assign(
-                        targets=[ast.Name(id=parameter, ctx=ast.Store())],
-                        value=ast.Constant(value=argument),
-                    ),
-                )
-                # add lineno and col_offset attributes
-                generated_ast = ast.fix_missing_locations(generated_ast)
                 fixtures.append(
-                    PyTestFixture(
-                        [],
-                        parameter,
-                        [generated_ast],
-                    )
+                    Reconstructor.reconstruct_primitive(parameter, argument)
                 )
 
             else:
