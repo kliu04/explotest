@@ -7,7 +7,7 @@ from src.explotest.pytest_fixture import PyTestFixture
 
 @dataclass
 class GeneratedTest:
-    fut_name: ast.Name | ast.Attribute  # name of function-under-test
+    fut_node: ast.FunctionDef
     imports: list[ast.Import | ast.ImportFrom]  # needed imports for the test file
     fixtures: list[PyTestFixture]  # argument generators
     act_phase: ast.Assign  # calling the function-under-test
@@ -29,7 +29,7 @@ class GeneratedTest:
         """
         need_to_request_fixtures_for_these_args = self._find_arguments_passed_into_assign_call()
 
-        return ast.fix_missing_locations(ast.FunctionDef(name=f'test_{self.fut_name}', args=ast.arguments(
+        return ast.fix_missing_locations(ast.FunctionDef(name=f'test_{self.fut_node.name}', args=ast.arguments(
             args=[ast.arg(self._request_fixture(a)) for a in need_to_request_fixtures_for_these_args]),
                                                          body=(self.decompose_steps() + [
                                                              self.act_phase] + self.asserts)))

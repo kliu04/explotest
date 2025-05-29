@@ -31,7 +31,6 @@ class PickleReconstructor(Reconstructor):
                             cast(
                                 ast.AST,
                                 # assign each primitive its argument as a constant
-                                # TODO: check if this works for collections
                                 ast.Assign(
                                     targets=[ast.Name(id=parameter, ctx=ast.Store())],
                                     value=ast.Constant(value=argument),
