@@ -23,7 +23,7 @@ class TestGenerator:
         self.file_path = file_path
         match mode:
             case Mode.RECONSTRUCT:
-                self.reconstructor = ArgumentReconstructionReconstructor()
+                self.reconstructor = ArgumentReconstructionReconstructor(file_path)
             case Mode.PICKLE:
                 self.reconstructor = PickleReconstructor(file_path)
             case Mode.SLICE:

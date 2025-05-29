@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from src.explotest.pytest_fixture import PyTestFixture
 
 
-@dataclass
+@dataclass(frozen=True)
 class GeneratedTest:
     imports: list[ast.Import]  # needed imports for the test file
     fixtures: list[PyTestFixture]  # argument generators
