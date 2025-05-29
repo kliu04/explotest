@@ -31,13 +31,10 @@ class TestGenerator:
             case _:
                 raise Exception(f"Unknown Mode: {mode}")
 
-    def generate(self, bindings: Dict[str, object]) -> GeneratedTest:
+    def _imports(self, filename: str) -> list[ast.Import | ast.ImportFrom]:
         """
-        Creates a test for the FUT specified by the TestGenerator. Provide a set of parameter bindings (parameter -> value)
-        to create a test that reconstructs those bindings into a test.
+        Returns all the imports required for this test.
         """
-        params = list(bindings.keys())
-        filename = self.file_path.stem
         imports = []
 
         # if in pickle mode, need to import dill to unpickle
@@ -46,11 +43,20 @@ class TestGenerator:
 
         imports.append(ast.Import(names=[alias(name=filename)]))
 
+        return imports
+
+    def generate(self, bindings: Dict[str, object]) -> GeneratedTest:
+        """
+        Creates a test for the FUT specified by the TestGenerator. Provide a set of parameter bindings (parameter -> value)
+        to create a test that reconstructs those bindings into a test.
+        """
+        params = list(bindings.keys())
+        filename = self.file_path.stem
+
         asts = self.reconstructor.asts(bindings)
-        print(asts)
 
         return GeneratedTest(
-            imports,
+            self._imports(filename),
             asts,
             ast.Assign(
                 targets=[ast.Name(id="return_value", ctx=ast.Store())],
