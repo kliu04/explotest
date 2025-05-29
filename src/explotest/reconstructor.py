@@ -1,19 +1,31 @@
 import abc
 import ast
 from abc import abstractmethod
-from typing import cast
+from dataclasses import dataclass
+from pathlib import Path
+from typing import cast, Dict, Any
 
 from src.explotest.pytest_fixture import PyTestFixture
 
 
+@dataclass(frozen=True)
 class Reconstructor(abc.ABC):
     """Transforms bindings of params and arguments back into code."""
 
+    filepath: Path  # path to write pickled files to
+
+    def asts(self, bindings: Dict[str, Any]) -> list[PyTestFixture]:
+        """:returns a list of PyTestFixture, which represents each parameter : argument pair"""
+        fixtures = []
+        for parameter, argument in bindings.items():
+            fixtures.append(self._ast(parameter, argument))
+        return fixtures
+
     @abstractmethod
-    def asts(self, bindings) -> list[PyTestFixture]: ...
+    def _ast(self, parameter: str, argument: Any) -> PyTestFixture: ...
 
     @staticmethod
-    def reconstruct_primitive(parameter, argument) -> PyTestFixture:
+    def _reconstruct_primitive(parameter: str, argument: Any) -> PyTestFixture:
         """Helper to reconstruct primitives, since behaviour should be the same across all reconstruction modes."""
         # need to cast here to not confuse mypy
         generated_ast = cast(
