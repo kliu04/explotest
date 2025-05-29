@@ -1,7 +1,7 @@
 import ast
 from _ast import alias
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Any
 
 from src.explotest.argument_reconstruction_reconstructor import (
     ArgumentReconstructionReconstructor,
@@ -17,7 +17,7 @@ class TestGenerator:
     file_path: Path
     reconstructor: Reconstructor
 
-    # TODO: refactor this to use DI
+    # TODO: refactor this to use dependency injection
     def __init__(self, function_name: str, file_path: Path, mode: Mode):
         self.function_name = function_name
         self.file_path = file_path
@@ -45,9 +45,10 @@ class TestGenerator:
 
         return imports
 
-    def generate(self, bindings: Dict[str, object]) -> GeneratedTest:
+    def generate(self, bindings: Dict[str, Any]) -> GeneratedTest:
         """
-        Creates a test for the FUT specified by the TestGenerator. Provide a set of parameter bindings (parameter -> value)
+        Creates a test for the function-under-test specified by the TestGenerator.
+        Provide a set of parameter bindings (parameter -> value)
         to create a test that reconstructs those bindings into a test.
         """
         params = list(bindings.keys())
