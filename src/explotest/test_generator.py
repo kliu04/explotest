@@ -17,6 +17,7 @@ class TestGenerator:
     file_path: Path
     reconstructor: Reconstructor
 
+    # TODO: refactor this to use DI
     def __init__(self, function_name: str, file_path: Path, mode: Mode):
         self.function_name = function_name
         self.file_path = file_path
@@ -31,6 +32,10 @@ class TestGenerator:
                 raise Exception(f"Unknown Mode: {mode}")
 
     def generate(self, bindings: Dict[str, object]) -> GeneratedTest:
+        """
+        Creates a test for the FUT specified by the TestGenerator. Provide a set of parameter bindings (parameter -> value)
+        to create a test that reconstructs those bindings into a test.
+        """
         params = list(bindings.keys())
         filename = self.file_path.stem
         imports = []
