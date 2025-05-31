@@ -1,15 +1,15 @@
 import ast
 from dataclasses import dataclass
-from typing import Self
+from typing import Self, Optional
 
 
 @dataclass
 class PyTestFixture:
     depends: list[Self]  # fixture dependencies
     parameter: str  # parameter that this fixture generates
-    body: list[  # body of the fixture
-        ast.AST
-    ]  # TODO: find a way to guarantee that this fixture always returns.
+    body: list[ast.AST]  # body of the fixture
+    # the fixture of the function-under-test does not have a return
+    ret: Optional[ast.Return | ast.Yield]
 
     @property
     def ast_node(self) -> ast.FunctionDef:
