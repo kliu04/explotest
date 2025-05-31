@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.explotest.pytest_fixture import PyTestFixture
 from src.explotest.helpers import is_primitive
 from src.explotest.pickle_reconstructor import PickleReconstructor
+from src.explotest.pytest_fixture import PyTestFixture
 from src.explotest.reconstructor import Reconstructor
 
 
@@ -30,7 +30,8 @@ class ArgumentReconstructionReconstructor(Reconstructor):
     @staticmethod
     def is_class_instance(obj: Any) -> bool:
         """True iff object is an instance of a user-defined class."""
-        return False
+        # TODO: this does not work
+        return not inspect.isfunction(obj)
 
     def _reconstruct_object_instance(self, parameter: str, obj: Any) -> PyTestFixture:
         """Return an PTF representation of a clone of obj by setting attributes equal to obj"""
@@ -50,17 +51,17 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         ptf = PyTestFixture([], parameter, [])
 
         # create an instance without calling __init__
-        # clone = Foo.__new__(Foo)
+        # E.g., clone = Foo.__new__(Foo)
         clone_name = f"clone_{parameter}"
         _clone = ast.Assign(
             targets=[ast.Name(id=clone_name, ctx=ast.Store())],
             value=ast.Call(
                 func=ast.Attribute(
-                    value=ast.Name(id=str(type(obj)), ctx=ast.Load()),
+                    value=ast.Name(id=type(obj).__name__, ctx=ast.Load()),
                     attr="__new__",
                     ctx=ast.Load(),
                 ),
-                args=[ast.Name(id=str(type(obj)), ctx=ast.Load())],
+                args=[ast.Name(id=type(obj).__name__, ctx=ast.Load())],
             ),
         )
         _clone = ast.fix_missing_locations(_clone)
@@ -75,8 +76,8 @@ class ArgumentReconstructionReconstructor(Reconstructor):
                         func=ast.Name(id="setattr", ctx=ast.Load()),
                         args=[
                             ast.Name(id=clone_name, ctx=ast.Load()),
-                            ast.Name(id=attribute_name, ctx=ast.Load()),
-                            ast.Name(id=attribute_value, ctx=ast.Load()),
+                            ast.Name(id=f"'{attribute_name}'", ctx=ast.Load()),
+                            ast.Constant(value=attribute_value),
                         ],
                     )
                 )
@@ -87,6 +88,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             elif ArgumentReconstructionReconstructor.is_class_instance(attribute_value):
                 # corresponds to: setattr(x, attribute_name, generate_attribute_name)
 
+                # TODO: need to add a return statement here
                 ptf.depends.append(
                     self._reconstruct_object_instance(attribute_name, attribute_value)
                 )
