@@ -1,5 +1,4 @@
 import ast
-import os
 from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
@@ -23,12 +22,6 @@ class TestGenerator:
         self.function_name = function_name
         self.file_path = file_path
 
-        # make and clear pickled directory
-        os.makedirs(f"{file_path}/pickled", exist_ok=True)
-        for root, _, files in os.walk(f"{file_path}/pickled"):
-            for file in files:
-                os.remove(os.path.join(root, file))
-
         match mode:
             case Mode.RECONSTRUCT:
                 self.reconstructor = ArgumentReconstructionReconstructor(file_path)
@@ -45,6 +38,7 @@ class TestGenerator:
         """
         imports = [
             ast.Import(names=[alias(name="dill")]),
+            ast.Import(names=[alias(name="pytest")]),
             ast.Import(names=[alias(name=filename)]),
         ]
 

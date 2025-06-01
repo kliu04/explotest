@@ -21,7 +21,7 @@ class PickleReconstructor(Reconstructor):
         pickled_id = str(uuid.uuid4().hex)[:8]
 
         # write the pickled object to file
-        pickled_path = f"{self.filepath}/pickled/{parameter}_{pickled_id}.pkl"
+        pickled_path = f"{self.file_path.parent}/pickled/{parameter}_{pickled_id}.pkl"
         with open(pickled_path, "wb") as f:
             f.write(dill.dumps(argument))
 
