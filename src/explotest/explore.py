@@ -1,6 +1,6 @@
+import ast
 import functools
 import inspect
-import os
 from pathlib import Path
 
 from src.explotest.helpers import Mode, is_running_under_test
@@ -25,13 +25,6 @@ def explore(func=None, mode=Mode.PICKLE):
         @functools.wraps(_func)
         def wrapper(*args, **kwargs):
 
-            if mode == Mode.PICKLE:
-                # make and clear pickled directory
-                os.makedirs(f"{filepath}/pickled", exist_ok=True)
-                for root, _, files in os.walk(f"{filepath}/pickled"):
-                    for file in files:
-                        os.remove(os.path.join(root, file))
-
             # grab formal signature of func
             func_signature = inspect.signature(_func)
             # bind it to given args and kwargs
@@ -40,7 +33,10 @@ def explore(func=None, mode=Mode.PICKLE):
             bound_args.apply_defaults()
 
             tg = TestGenerator(qualified_name, filepath, mode)
-            tg.generate(bound_args.arguments)
+
+            # write test to a file
+            with open(f"{filepath}/test_{qualified_name}.py", "w") as f:
+                f.write(ast.unparse(tg.generate(bound_args.arguments).ast_node))
 
             # finally, call and return the function-under-test
             return _func(*args, **kwargs)

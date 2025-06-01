@@ -1,4 +1,5 @@
 import ast
+import os
 from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
@@ -21,9 +22,16 @@ class TestGenerator:
     def __init__(self, function_name: str, file_path: Path, mode: Mode):
         self.function_name = function_name
         self.file_path = file_path
+
+        # make and clear pickled directory
+        os.makedirs(f"{file_path}/pickled", exist_ok=True)
+        for root, _, files in os.walk(f"{file_path}/pickled"):
+            for file in files:
+                os.remove(os.path.join(root, file))
+
         match mode:
             case Mode.RECONSTRUCT:
-                self.reconstructor = ArgumentReconstructionReconstructor()
+                self.reconstructor = ArgumentReconstructionReconstructor(file_path)
             case Mode.PICKLE:
                 self.reconstructor = PickleReconstructor(file_path)
             case Mode.SLICE:
@@ -35,13 +43,10 @@ class TestGenerator:
         """
         Returns all the imports required for this test.
         """
-        imports = []
-
-        # if in pickle mode, need to import dill to unpickle
-        if isinstance(self.reconstructor, PickleReconstructor):
-            imports.append(ast.Import(names=[alias(name="dill")]))
-
-        imports.append(ast.Import(names=[alias(name=filename)]))
+        imports = [
+            ast.Import(names=[alias(name="dill")]),
+            ast.Import(names=[alias(name=filename)]),
+        ]
 
         return imports
 
@@ -69,4 +74,5 @@ class TestGenerator:
                 ),
             ),
             [],
+            [],  # FIXME: what is this?
         )
