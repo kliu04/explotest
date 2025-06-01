@@ -76,4 +76,5 @@ class TestGenerator:
             asts,
             assignment,
             [],
+            [],
         )
