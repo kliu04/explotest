@@ -42,13 +42,10 @@ class TestGenerator:
     def generate(self, bindings: Dict[str, object]) -> GeneratedTest:
         params = list(bindings.keys())
         filename = self.file_path.stem
-        imports = []
-
-        # if in pickle mode, need to import dill to unpickle
-        if isinstance(self.reconstructor, PickleReconstructor):
-            imports.append(ast.Import(names=[alias(name="dill")]))
-
-        imports.append(ast.Import(names=[alias(name=filename)]))
+        imports = [
+            ast.Import(names=[alias(name="dill")]),
+            ast.Import(names=[alias(name=filename)]),
+        ]
 
         asts = self.reconstructor.asts(bindings)
 

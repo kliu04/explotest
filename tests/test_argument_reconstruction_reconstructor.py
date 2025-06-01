@@ -44,21 +44,21 @@ def test_reconstruct_object_instance_recursive_1(setup):
     class Foo:
         bar = Bar()
 
-    """
-    f = Foo()
-    setup.asts({"x": f})
-    
-    x = Foo.__new__(Foo)
-    
-    bar = Bar.__new__(Bar)
-    setattr(x, "bar", bar)
-    # TODO: add quotes here
-    """
+    asts = setup.asts({"f": Foo()})
+    assert len(asts) == 1
 
-    x = Foo.__new__(Foo)
+    ptf = asts[0]
 
-    bar = Bar.__new__(Bar)
-    setattr(x, bar, bar)
+    assert len(ptf.depends) == 1
+    dependency = ptf.depends[0]
+    assert dependency.parameter == "bar"
+    assert len(dependency.body) == 1
+    assert ast.unparse(dependency.body[0]) == "clone_bar = Bar.__new__(Bar)"
+    assert ast.unparse(dependency.ret) == "return clone_bar"
+
+    assert ptf.parameter == "f"
+    assert ast.unparse(ptf.body[0]) == "clone_f = Foo.__new__(Foo)"
+    assert ast.unparse(ptf.body[1]) == "setattr(clone_f, 'bar', generate_bar)"
 
 
 def test_reconstruct_object_instance_recursive_2(setup):
@@ -72,7 +72,35 @@ def test_reconstruct_object_instance_recursive_2(setup):
         bar = Bar()
 
     f = Foo()
-    ArgumentReconstructionReconstructor._reconstruct_object_instance(f)
+    asts = setup.asts({"f": f})
+    assert len(asts) == 1
+
+    ptf = asts[0]
+
+    # bar
+    assert len(ptf.depends) == 1
+    dependency_bar = ptf.depends[0]
+    assert dependency_bar.parameter == "bar"
+    assert len(dependency_bar.body) == 2
+    assert ast.unparse(dependency_bar.body[0]) == "clone_bar = Bar.__new__(Bar)"
+    assert (
+        ast.unparse(dependency_bar.body[1]) == "setattr(clone_bar, 'baz', generate_baz)"
+    )
+    assert ast.unparse(dependency_bar.ret) == "return clone_bar"
+
+    # baz
+    assert len(dependency_bar.depends) == 1
+    dependency_baz = dependency_bar.depends[0]
+    assert dependency_baz.parameter == "baz"
+    assert len(dependency_baz.body) == 1
+    assert ast.unparse(dependency_baz.body[0]) == "clone_baz = Baz.__new__(Baz)"
+    assert ast.unparse(dependency_baz.ret) == "return clone_baz"
+
+    assert ptf.parameter == "f"
+    assert ast.unparse(ptf.body[0]) == "clone_f = Foo.__new__(Foo)"
+    assert ast.unparse(ptf.body[1]) == "setattr(clone_f, 'bar', generate_bar)"
+    print(ast.unparse(ptf.body[0]))
+    print(ast.unparse(ptf.body[1]))
 
 
 def test_reconstruct_lambda(setup):
