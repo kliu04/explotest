@@ -43,7 +43,7 @@ class PickleReconstructor(Reconstructor):
                     )
                 ],
                 body=[
-                    # param = dill.loads(f.read())
+                    # parameter = dill.loads(f.read())
                     ast.Assign(
                         targets=[ast.Name(id=parameter, ctx=ast.Store())],
                         value=ast.Call(
@@ -70,8 +70,9 @@ class PickleReconstructor(Reconstructor):
             ),
         )
         generated_ast = ast.fix_missing_locations(generated_ast)
-        return PyTestFixture(
-            [],
-            parameter,
-            [generated_ast],
+
+        ret = ast.fix_missing_locations(
+            ast.Return(value=ast.Name(id=parameter, ctx=ast.Load()))
         )
+
+        return PyTestFixture([], parameter, [generated_ast], ret)

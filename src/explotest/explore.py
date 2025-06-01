@@ -1,6 +1,5 @@
 import functools
 import inspect
-import os
 from pathlib import Path
 
 from src.explotest.helpers import Mode, is_running_under_test
@@ -24,13 +23,6 @@ def explore(func=None, mode=Mode.PICKLE):
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
         def wrapper(*args, **kwargs):
-
-            if mode == Mode.PICKLE:
-                # make and clear pickled directory
-                os.makedirs(f"{filepath}/pickled", exist_ok=True)
-                for root, _, files in os.walk(f"{filepath}/pickled"):
-                    for file in files:
-                        os.remove(os.path.join(root, file))
 
             # grab formal signature of func
             func_signature = inspect.signature(_func)

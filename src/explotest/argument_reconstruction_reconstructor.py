@@ -34,7 +34,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         return not inspect.isfunction(obj)
 
     def _reconstruct_object_instance(self, parameter: str, obj: Any) -> PyTestFixture:
-        """Return an PTF representation of a clone of obj by setting attributes equal to obj"""
+        """Return an PTF representation of a clone of obj by setting attributes equal to obj."""
 
         # taken from inspect.getmembers(Foo()) on empty class Foo
         builtins = [
@@ -45,11 +45,11 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             "__static_attributes__",
             "__weakref__",
         ]
+
         attributes = inspect.getmembers(obj, predicate=lambda x: not callable(x))
         attributes = list(filter(lambda x: x[0] not in builtins, attributes))
 
-        ptf = PyTestFixture([], parameter, [])
-
+        ptf_body: list[ast.AST] = []
         # create an instance without calling __init__
         # E.g., clone = Foo.__new__(Foo)
         clone_name = f"clone_{parameter}"
@@ -65,8 +65,8 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             ),
         )
         _clone = ast.fix_missing_locations(_clone)
-        ptf.body.append(_clone)
-
+        ptf_body.append(_clone)
+        deps = []
         for attribute_name, attribute_value in attributes:
             if is_primitive(attribute_value):
                 # corresponds to: setattr(x, attribute_name, attribute_value)
@@ -82,20 +82,18 @@ class ArgumentReconstructionReconstructor(Reconstructor):
                     )
                 )
                 _setattr = ast.fix_missing_locations(_setattr)
-                ptf.body.append(_setattr)
+                ptf_body.append(_setattr)
                 continue
 
             elif ArgumentReconstructionReconstructor.is_class_instance(attribute_value):
                 # corresponds to: setattr(x, attribute_name, generate_attribute_name)
-
-                # TODO: need to add a return statement here
-                ptf.depends.append(
+                deps.append(
                     self._reconstruct_object_instance(attribute_name, attribute_value)
                 )
 
             else:
-                # if unsettable, should fallback on pickling
-                ptf.depends.append(
+                # if unsettable, should fall back on pickling
+                deps.append(
                     self.backup_reconstructor._ast(attribute_name, attribute_value)
                 )
 
@@ -104,12 +102,17 @@ class ArgumentReconstructionReconstructor(Reconstructor):
                     func=ast.Name(id="setattr", ctx=ast.Load()),
                     args=[
                         ast.Name(id=clone_name, ctx=ast.Load()),
-                        ast.Name(id=attribute_name, ctx=ast.Load()),
+                        ast.Name(id=f"'{attribute_name}'", ctx=ast.Load()),
                         ast.Name(id=f"generate_{attribute_name}", ctx=ast.Load()),
                     ],
                 )
             )
             _setattr = ast.fix_missing_locations(_setattr)
-            ptf.body.append(_setattr)
+            ptf_body.append(_setattr)
 
-        return ptf
+        # FIXME: seems brittle?
+        ret = ast.fix_missing_locations(
+            ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
+        )
+
+        return PyTestFixture(deps, parameter, ptf_body, ret)
