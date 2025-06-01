@@ -61,20 +61,18 @@ class TestGenerator:
 
         asts = self.reconstructor.asts(bindings)
 
-        assignment = ast.Assign(
-            targets=[ast.Name(id="return_value", ctx=ast.Store())],
-            value=ast.Call(
-                func=ast.Name(id=f"{filename}.{self.function_name}", ctx=ast.Load()),
-                args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
-            ),
-        )
-
-        assignment = ast.fix_missing_locations(assignment)
-
         return GeneratedTest(
             self._imports(filename),
             asts,
-            assignment,
+            ast.Assign(
+                targets=[ast.Name(id="return_value", ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Name(
+                        id=f"{filename}.{self.function_name}", ctx=ast.Load()
+                    ),
+                    args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
+                ),
+            ),
             [],
-            [],
+            [],  # FIXME: what is this?
         )

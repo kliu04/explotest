@@ -40,7 +40,7 @@ class GeneratedTest:
         ]
 
         generated_defn = ast.FunctionDef(
-            name=f"test_{self.fut_node.name}",
+            name=f"test_hello",  # FIXME: get name
             args=ast.arguments(args=requested_fixtures),
             body=(self.decompose_steps() + [self.act_phase] + self.asserts),
         )
