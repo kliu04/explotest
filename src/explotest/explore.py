@@ -21,10 +21,16 @@ def explore(func=None, mode=Mode.PICKLE):
         if is_running_under_test():
             return _func
 
-        # parent directory of file containing func
-
         # name of function under test
         qualified_name = _func.__qualname__
+
+        file_path = Path(inspect.getfile(_func))
+
+        # make and clear pickled directory
+        os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
+        for root, _, files in os.walk(f"{file_path.parent}/pickled"):
+            for file in files:
+                os.remove(os.path.join(root, file))
 
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
@@ -49,14 +55,6 @@ def explore(func=None, mode=Mode.PICKLE):
             return _func(*args, **kwargs)
 
         return wrapper
-
-    file_path = Path(inspect.getfile(func))
-
-    # make and clear pickled directory
-    os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
-    for root, _, files in os.walk(f"{file_path.parent}/pickled"):
-        for file in files:
-            os.remove(os.path.join(root, file))
 
     # hacky way to allow for both @explore(mode=...) and @explore (defaulting on mode)
     if func:
