@@ -12,7 +12,7 @@ from src.explotest.pytest_fixture import PyTestFixture
 class Reconstructor(abc.ABC):
     """Transforms bindings of params and arguments back into code."""
 
-    filepath: Path  # path to write pickled files to
+    file_path: Path  # path to write pickled files to
 
     def asts(self, bindings: Dict[str, Any]) -> list[PyTestFixture]:
         """:returns a list of PyTestFixture, which represents each parameter : argument pair"""

@@ -1,10 +1,16 @@
 import ast
 import functools
 import inspect
+import os
 from pathlib import Path
 
 from src.explotest.helpers import Mode, is_running_under_test
 from src.explotest.test_generator import TestGenerator
+
+
+def sanitize_name(name: str) -> str:
+    """Replace . with _ in filenames"""
+    return name.replace(".", "_")
 
 
 def explore(func=None, mode=Mode.PICKLE):
@@ -16,7 +22,6 @@ def explore(func=None, mode=Mode.PICKLE):
             return _func
 
         # parent directory of file containing func
-        filepath = Path(inspect.getfile(_func)).parent
 
         # name of function under test
         qualified_name = _func.__qualname__
@@ -32,16 +37,26 @@ def explore(func=None, mode=Mode.PICKLE):
             # fill in default arguments, if needed
             bound_args.apply_defaults()
 
-            tg = TestGenerator(qualified_name, filepath, mode)
+            tg = TestGenerator(qualified_name, file_path, mode)
 
             # write test to a file
-            with open(f"{filepath}/test_{qualified_name}.py", "w") as f:
+            with open(
+                f"{file_path.parent}/test_{sanitize_name(qualified_name)}.py", "w"
+            ) as f:
                 f.write(ast.unparse(tg.generate(bound_args.arguments).ast_node))
 
             # finally, call and return the function-under-test
             return _func(*args, **kwargs)
 
         return wrapper
+
+    file_path = Path(inspect.getfile(func))
+
+    # make and clear pickled directory
+    os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
+    for root, _, files in os.walk(f"{file_path.parent}/pickled"):
+        for file in files:
+            os.remove(os.path.join(root, file))
 
     # hacky way to allow for both @explore(mode=...) and @explore (defaulting on mode)
     if func:
