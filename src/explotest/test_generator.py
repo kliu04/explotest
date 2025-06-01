@@ -43,13 +43,10 @@ class TestGenerator:
         """
         Returns all the imports required for this test.
         """
-        imports = []
-
-        # if in pickle mode, need to import dill to unpickle
-        if isinstance(self.reconstructor, PickleReconstructor):
-            imports.append(ast.Import(names=[alias(name="dill")]))
-
-        imports.append(ast.Import(names=[alias(name=filename)]))
+        imports = [
+            ast.Import(names=[alias(name="dill")]),
+            ast.Import(names=[alias(name=filename)]),
+        ]
 
         return imports
 
@@ -64,17 +61,19 @@ class TestGenerator:
 
         asts = self.reconstructor.asts(bindings)
 
+        assignment = ast.Assign(
+            targets=[ast.Name(id="return_value", ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id=f"{filename}.{self.function_name}", ctx=ast.Load()),
+                args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
+            ),
+        )
+
+        assignment = ast.fix_missing_locations(assignment)
+
         return GeneratedTest(
             self._imports(filename),
             asts,
-            ast.Assign(
-                targets=[ast.Name(id="return_value", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(
-                        id=f"{filename}.{self.function_name}", ctx=ast.Load()
-                    ),
-                    args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
-                ),
-            ),
+            assignment,
             [],
         )
