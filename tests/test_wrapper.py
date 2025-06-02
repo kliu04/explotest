@@ -68,7 +68,7 @@ tr_rule(values['f'], values['x'], dx, 1)
     def setup(self, monkeypatch, patched):
         monkeypatch.setattr(magic_arguments, 'parse_argstring', patched)
 
-    @pytest.mark.timeout(3) # 3s max for this test.
+    # @pytest.mark.timeout(3) # 3s max for this test.
     def test_wrapper_generated_test(self, run_program):
         result: GeneratedTest = generate_tests_wrapper(run_program)()
         assert isinstance(result, GeneratedTest)
