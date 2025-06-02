@@ -1,4 +1,5 @@
 import ast
+import os
 import uuid
 from dataclasses import dataclass
 from typing import cast
@@ -21,8 +22,9 @@ class PickleReconstructor(Reconstructor):
         pickled_id = str(uuid.uuid4().hex)[:8]
 
         # write the pickled object to file
+        os.makedirs(f"{self.file_path.parent}/pickled", exist_ok=True)
         pickled_path = f"{self.file_path.parent}/pickled/{parameter}_{pickled_id}.pkl"
-        with open(pickled_path, "wb+") as f:
+        with open(pickled_path, "wb") as f:
             f.write(dill.dumps(argument))
 
         generated_ast = cast(

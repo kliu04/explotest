@@ -3,12 +3,12 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
 
-from explotest.helpers import sanitize_name
 from src.explotest.argument_reconstruction_reconstructor import (
     ArgumentReconstructionReconstructor,
 )
 from src.explotest.generated_test import GeneratedTest
 from src.explotest.helpers import Mode
+from src.explotest.helpers import sanitize_name
 from src.explotest.pickle_reconstructor import PickleReconstructor
 from src.explotest.reconstructor import Reconstructor
 
@@ -55,19 +55,19 @@ class TestGenerator:
         filename = self.file_path.stem
 
         asts = self.reconstructor.asts(bindings)
+        return_ast = ast.Assign(
+            targets=[ast.Name(id="return_value", ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id=f"{filename}.{self.function_name}", ctx=ast.Load()),
+                args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
+            ),
+        )
+        return_ast = ast.fix_missing_locations(return_ast)
         return GeneratedTest(
             sanitize_name(self.function_name),
             self._imports(filename),
             asts,
-            ast.Assign(
-                targets=[ast.Name(id="return_value", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(
-                        id=f"{filename}.{self.function_name}", ctx=ast.Load()
-                    ),
-                    args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
-                ),
-            ),
+            return_ast,
             [],
             [],  # FIXME: what is this?
         )

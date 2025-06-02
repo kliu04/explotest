@@ -31,7 +31,10 @@ def test_reconstruct_object_instance(setup):
     expr_1 = ptf.body[1]
     expr_2 = ptf.body[2]
 
-    assert ast.unparse(assign) == "clone_x = Foo.__new__(Foo)"
+    assert (
+        ast.unparse(assign)
+        == "clone_x = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
+    )
     assert ast.unparse(expr_1) == "setattr(clone_x, 'x', 1)"
     assert ast.unparse(expr_2) == "setattr(clone_x, 'y', 2)"
 
@@ -53,11 +56,17 @@ def test_reconstruct_object_instance_recursive_1(setup):
     dependency = ptf.depends[0]
     assert dependency.parameter == "bar"
     assert len(dependency.body) == 1
-    assert ast.unparse(dependency.body[0]) == "clone_bar = Bar.__new__(Bar)"
+    assert (
+        ast.unparse(dependency.body[0])
+        == "clone_bar = test_argument_reconstruction_reconstructor.Bar.__new__(test_argument_reconstruction_reconstructor.Bar)"
+    )
     assert ast.unparse(dependency.ret) == "return clone_bar"
 
     assert ptf.parameter == "f"
-    assert ast.unparse(ptf.body[0]) == "clone_f = Foo.__new__(Foo)"
+    assert (
+        ast.unparse(ptf.body[0])
+        == "clone_f = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
+    )
     assert ast.unparse(ptf.body[1]) == "setattr(clone_f, 'bar', generate_bar)"
 
 
@@ -82,7 +91,10 @@ def test_reconstruct_object_instance_recursive_2(setup):
     dependency_bar = ptf.depends[0]
     assert dependency_bar.parameter == "bar"
     assert len(dependency_bar.body) == 2
-    assert ast.unparse(dependency_bar.body[0]) == "clone_bar = Bar.__new__(Bar)"
+    assert (
+        ast.unparse(dependency_bar.body[0])
+        == "clone_bar = test_argument_reconstruction_reconstructor.Bar.__new__(test_argument_reconstruction_reconstructor.Bar)"
+    )
     assert (
         ast.unparse(dependency_bar.body[1]) == "setattr(clone_bar, 'baz', generate_baz)"
     )
@@ -93,11 +105,17 @@ def test_reconstruct_object_instance_recursive_2(setup):
     dependency_baz = dependency_bar.depends[0]
     assert dependency_baz.parameter == "baz"
     assert len(dependency_baz.body) == 1
-    assert ast.unparse(dependency_baz.body[0]) == "clone_baz = Baz.__new__(Baz)"
+    assert (
+        ast.unparse(dependency_baz.body[0])
+        == "clone_baz = test_argument_reconstruction_reconstructor.Baz.__new__(test_argument_reconstruction_reconstructor.Baz)"
+    )
     assert ast.unparse(dependency_baz.ret) == "return clone_baz"
 
     assert ptf.parameter == "f"
-    assert ast.unparse(ptf.body[0]) == "clone_f = Foo.__new__(Foo)"
+    assert (
+        ast.unparse(ptf.body[0])
+        == "clone_f = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
+    )
     assert ast.unparse(ptf.body[1]) == "setattr(clone_f, 'bar', generate_bar)"
     print(ast.unparse(ptf.body[0]))
     print(ast.unparse(ptf.body[1]))
