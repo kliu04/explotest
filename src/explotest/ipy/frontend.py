@@ -87,6 +87,13 @@ class FrontEnd(ABC):
             'No call was found in target line number. Make sure that the line is only a call, not an assignment.')
 
 
+    @property
+    def function_def(self):
+        """
+        Returns the function definition of the call on `lineno`, if it is defined.
+        If you call a external function, it won't be.
+        """
+        return self._search_history_for_func_def_with_id(self.call_on_lineno.func.id)
 
     def _search_history_for_func_def_with_id(self, id: str) -> ast.FunctionDef | None:
         def search_helper(node: ast.AST) -> ast.FunctionDef | None:
@@ -150,11 +157,11 @@ class FrontEnd(ABC):
         return result
 
     @property
-    def repl_imports(self) -> set[ast.Import | ast.ImportFrom]:
+    def repl_imports(self) -> list[ast.Import | ast.ImportFrom]:
         """
         Returns all the imports used in the REPL run.
         """
-        imports: set[ast.Import | ast.ImportFrom] = set()
+        imports: list[ast.Import | ast.ImportFrom] = []
 
         def search_helper(node: ast.AST) -> Generator[Import | ImportFrom, Any, None]:
             for child in ast.walk(node):
@@ -164,6 +171,6 @@ class FrontEnd(ABC):
         for line in self.history:
             run = self.history[line]
             for result in search_helper(run.input):
-                imports.add(result)
+                imports.append(result)
 
         return imports  # stub

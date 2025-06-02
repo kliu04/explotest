@@ -67,7 +67,7 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
         ipy_frontend = FrontEnd(ipython, int(args.lineno))
 
         tg = TestGenerator(ipy_frontend.call_on_lineno.func.id, Path('.'), mode)
-        generated_test = tg.generate(ipy_frontend.function_params_and_args())
+        generated_test = tg.generate(ipy_frontend.function_params_and_args(), definitions=[ipy_frontend.function_def], injected_imports=ipy_frontend.repl_imports)
         with open(args.filename, 'w+') as file:
             file.write(ast.unparse(generated_test.ast_node))
         return generated_test

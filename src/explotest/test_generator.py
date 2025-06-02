@@ -33,19 +33,23 @@ class TestGenerator:
             case _:
                 raise Exception(f"Unknown Mode: {mode}")
 
-    def _imports(self, filename: str) -> list[ast.Import | ast.ImportFrom]:
+    def _imports(self, filename: str, inject: list[ast.Import | ast.ImportFrom] = None) -> list[ast.Import | ast.ImportFrom]:
         """
         Returns all the imports required for this test.
         """
         imports = [
             ast.Import(names=[alias(name="dill")]),
-            ast.Import(names=[alias(name="pytest")]),
-            ast.Import(names=[alias(name=filename)]),
+            ast.Import(names=[alias(name="pytest")])
         ]
+
+        if inject is not None:
+            imports += inject
+        else:
+            imports += [ast.Import(names=[alias(name=filename)])]
 
         return imports
 
-    def generate(self, bindings: Dict[str, Any], definitions: list[ast.FunctionDef | ast.ClassDef | ast.FunctionDef] = None) -> GeneratedTest:
+    def generate(self, bindings: Dict[str, Any], definitions: list[ast.FunctionDef | ast.ClassDef | ast.AsyncFunctionDef] = None, injected_imports: list[ast.Import | ast.ImportFrom] = None) -> GeneratedTest:
         """
         Creates a test for the function-under-test specified by the TestGenerator.
         Provide a set of parameter bindings (parameter -> value)
@@ -53,22 +57,24 @@ class TestGenerator:
         """
         if definitions is None:
             definitions = []
+        if injected_imports is None:
+            injected_imports = []
 
         params = list(bindings.keys())
-        filename = self.file_path.stem
+        filename = self.file_path.stem if str(self.file_path) != '.' else None
 
         asts = self.reconstructor.asts(bindings)
         return_ast = ast.Assign(
             targets=[ast.Name(id="return_value", ctx=ast.Store())],
             value=ast.Call(
-                func=ast.Name(id=f"{filename}.{self.function_name}", ctx=ast.Load()),
+                func=ast.Name(id=f"{filename}.{self.function_name}" if filename is not None else self.function_name, ctx=ast.Load()),
                 args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
             ),
         )
         return_ast = ast.fix_missing_locations(return_ast)
         return GeneratedTest(
             sanitize_name(self.function_name),
-            self._imports(filename),
+            self._imports(filename, injected_imports),
             asts,
             return_ast,
             [],

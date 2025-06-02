@@ -35,7 +35,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "numpy", "pandas"]
+test = ["pytest", "pytest-timeout", "numpy", "pandas"]
+repl = ["ipython"]
 
 
 [project.urls]
