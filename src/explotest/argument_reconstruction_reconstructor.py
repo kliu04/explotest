@@ -3,7 +3,7 @@ import inspect
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from .helpers import is_primitive, is_collection
 from .pickle_reconstructor import PickleReconstructor
@@ -38,6 +38,65 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         # FIXME: this does not work
         return not inspect.isfunction(obj)
 
+    def _reconstruct_collection(self, parameter, collection) -> PyTestFixture:
+        deps = []
+        ptf_body = []
+        unique_names = [f"test_{uuid.uuid4().hex[:8]}" for _ in range(len(collection))]
+        if isinstance(collection, dict):
+
+            for i in range(len(collection)):
+                deps.append(self._ast(unique_names[i], list(collection.values())[i]))
+
+            _clone = cast(
+                ast.AST,
+                ast.Assign(
+                    targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                    value=ast.Dict(
+                        keys=list(collection.keys()),
+                        values=[
+                            ast.Name(id=unique_name, ctx=ast.Load())
+                            for unique_name in unique_names
+                        ],
+                    ),
+                ),
+            )
+        else:
+
+            for i in range(len(collection)):
+                deps.append(self._ast(unique_names[i], collection[i]))
+
+            collection_ast_type: Any
+            if isinstance(collection, list):
+                collection_ast_type = ast.List
+            elif isinstance(collection, tuple):
+                collection_ast_type = ast.Tuple
+            elif isinstance(collection, set):
+                collection_ast_type = ast.Set
+            else:
+                assert False  # unreachable
+
+            _clone = cast(
+                ast.AST,
+                ast.Assign(
+                    targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                    value=collection_ast_type(
+                        elts=[
+                            ast.Name(id=unique_name, ctx=ast.Load())
+                            for unique_name in unique_names
+                        ],
+                        ctx=ast.Load(),
+                    ),
+                ),
+            )
+        _clone = ast.fix_missing_locations(_clone)
+        ptf_body.append(_clone)
+
+        # Return the clone
+        ret = ast.fix_missing_locations(
+            ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
+        )
+        return PyTestFixture(deps, parameter, ptf_body, ret)
+
     def _reconstruct_object_instance(self, parameter: str, obj: Any) -> PyTestFixture:
         """Return an PTF representation of a clone of obj by setting attributes equal to obj."""
 
@@ -62,44 +121,9 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         clone_name = f"clone_{parameter}"
 
         if is_collection(obj):
-
-            if isinstance(obj, dict):
-                raise NotImplementedError()
-
-            unique_names = [f"test_{uuid.uuid4().hex[:8]}" for _ in range(len(obj))]
-            for i in range(len(obj)):
-                deps.append(self._ast(unique_names[i], obj[i]))
-
-            collection_ast_type: Any
-            if isinstance(obj, list):
-                collection_ast_type = ast.List
-            elif isinstance(obj, tuple):
-                collection_ast_type = ast.Tuple
-            elif isinstance(obj, set):
-                collection_ast_type = ast.Set
-            else:
-                assert False  # unreachable
-
-            _clone = ast.Assign(
-                targets=[ast.Name(id=parameter, ctx=ast.Store())],
-                value=collection_ast_type(
-                    elts=[
-                        ast.Name(id=unique_name, ctx=ast.Load())
-                        for unique_name in unique_names
-                    ],
-                    ctx=ast.Load(),
-                ),
-            )
-            _clone = ast.fix_missing_locations(_clone)
-            ptf_body.append(_clone)
-            # Return the clone
-            ret = ast.fix_missing_locations(
-                ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
-            )
-            return PyTestFixture(deps, parameter, ptf_body, ret)
+            return self._reconstruct_collection(parameter, obj)
 
         module_path: str | None = inspect.getfile(type(obj))
-        # FIXME: think about lists!!!!
 
         module_path: Path = Path(module_path)  # type: ignore
         module_name = module_path.stem  # type: ignore
