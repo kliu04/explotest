@@ -1,6 +1,8 @@
 import pytest
 from IPython.core import magic_arguments
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
+
+from src.explotest.generated_test import GeneratedTest
 from src.explotest.ipy.wrapper import generate_tests_wrapper
 
 def patched_argstring_pickle():
@@ -67,5 +69,8 @@ tr_rule(values['f'], values['x'], dx, 1)
         monkeypatch.setattr(magic_arguments, 'parse_argstring', patched)
 
     def test_wrapper_generated_test(self, run_program):
-        generate_tests_wrapper(run_program)()
+        result: GeneratedTest = generate_tests_wrapper(run_program)()
+        assert isinstance(result, GeneratedTest)
+        assert result.imports
+
 

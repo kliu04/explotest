@@ -256,3 +256,5 @@ fabric.properties
 
 # because we use pip-tools
 ./requirements.txt
+
+./test_data/pickled/**
