@@ -50,9 +50,16 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         attributes = list(filter(lambda x: x[0] not in builtins, attributes))
         ptf_body: list[ast.AST] = []
         # create an instance without calling __init__
-        # E.g., clone = foo.Foo.__new__(foo.Foo)
+        # E.g., clone = foo.Foo.__new__(foo.Foo) (for file foo.py that defines a class Foo)
+
         clone_name = f"clone_{parameter}"
-        module_name = obj.__class__.__module__
+        module_path: str | None = inspect.getsourcefile(type(obj))
+        if module_path is None:
+            raise Exception(f"module at {module_path} not found.")
+
+        module_path: Path = Path(module_path)  # type: ignore
+        module_name = module_path.stem  # type: ignore
+
         class_name = obj.__class__.__name__
         # Build ast for: module_name.class_name.__new__(module_name.class_name)
         qualified_class = ast.Attribute(
