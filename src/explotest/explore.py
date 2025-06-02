@@ -24,7 +24,7 @@ def explore(func=None, mode=Mode.PICKLE):
         # name of function under test
         qualified_name = _func.__qualname__
 
-        file_path = Path(inspect.getfile(_func))
+        file_path = Path(inspect.getsourcefile(_func))
 
         # make and clear pickled directory
         os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
