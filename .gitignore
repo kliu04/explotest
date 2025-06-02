@@ -255,6 +255,7 @@ fabric.properties
 .pypirc
 
 # because we use pip-tools
-./requirements.txt
+requirements.txt
 
-./test_data/pickled/**
+./test_data/pickled
+./demos/pickled
