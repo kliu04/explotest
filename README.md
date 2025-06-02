@@ -2,7 +2,7 @@
 
 ExploTest is a tool to create unit tests from exploratory test runs.
 
-Dev-dependency setup:
+## setup
 
 Create a venv, then install `pip-tools`. Run `pip-compile` as specified.
 
