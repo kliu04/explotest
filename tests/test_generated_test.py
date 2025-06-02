@@ -22,7 +22,7 @@ class TestGeneratedTest:
 
     @pytest.fixture
     def tut(self):
-        tut = GeneratedTest('call', self.imports, self.all_imports, self.assignment, [], [])
+        tut = GeneratedTest(self.imports, self.all_imports, self.assignment, [], [])
         return tut
 
     @pytest.mark.skip(reason='Too flaky')

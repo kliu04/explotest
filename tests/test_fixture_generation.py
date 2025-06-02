@@ -43,6 +43,7 @@ class TestFixtureGeneration:
         expected = FunctionDef(name=f'generate_{var_name}', args=arguments(), body=body + [ret], decorator_list=[
             Attribute(value=Name(id='pytest', ctx=Load()), attr='fixture', ctx=Load())])
 
+
         assert ast.unparse(ast.fix_missing_locations(expected)) == ast.unparse(result.ast_node)
 
     def test_fixture_resolves_dependencies(self, var_name, body, ret):
