@@ -63,7 +63,7 @@ class TestGenerator:
         params = list(bindings.keys())
         filename = self.file_path.stem if str(self.file_path) != '.' else None
 
-        asts = self.reconstructor.asts(bindings)
+        fixture = self.reconstructor.asts(bindings)
         return_ast = ast.Assign(
             targets=[ast.Name(id="return_value", ctx=ast.Store())],
             value=ast.Call(
@@ -75,7 +75,7 @@ class TestGenerator:
         return GeneratedTest(
             sanitize_name(self.function_name),
             self._imports(filename, injected_imports),
-            asts,
+            fixture,
             return_ast,
             [],
             definitions,
