@@ -11,6 +11,10 @@ class Mode(Enum):
     SLICE = 3
 
 
+def sanitize_name(name: str) -> str:
+    return name.replace(".", "_")
+
+
 def is_primitive(x: Any) -> bool:
     """True iff x is a primitive type (int, float, str, bool) or a list of primitive types."""
 

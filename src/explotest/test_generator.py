@@ -3,6 +3,7 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
 
+from explotest.helpers import sanitize_name
 from src.explotest.argument_reconstruction_reconstructor import (
     ArgumentReconstructionReconstructor,
 )
@@ -54,9 +55,8 @@ class TestGenerator:
         filename = self.file_path.stem
 
         asts = self.reconstructor.asts(bindings)
-
         return GeneratedTest(
-            self.function_name,
+            sanitize_name(self.function_name),
             self._imports(filename),
             asts,
             ast.Assign(

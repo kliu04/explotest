@@ -4,13 +4,8 @@ import inspect
 import os
 from pathlib import Path
 
-from src.explotest.helpers import Mode, is_running_under_test
+from src.explotest.helpers import Mode, is_running_under_test, sanitize_name
 from src.explotest.test_generator import TestGenerator
-
-
-def sanitize_name(name: str) -> str:
-    """Replace . with _ in filenames"""
-    return name.replace(".", "_")
 
 
 def explore(func=None, mode=Mode.PICKLE):
@@ -32,6 +27,8 @@ def explore(func=None, mode=Mode.PICKLE):
             for file in files:
                 os.remove(os.path.join(root, file))
 
+        counter = 1
+
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
         def wrapper(*args, **kwargs):
@@ -45,11 +42,16 @@ def explore(func=None, mode=Mode.PICKLE):
 
             tg = TestGenerator(qualified_name, file_path, mode)
 
+            nonlocal counter
+
             # write test to a file
             with open(
-                f"{file_path.parent}/test_{sanitize_name(qualified_name)}.py", "w"
+                f"{file_path.parent}/test_{sanitize_name(qualified_name)}_{counter}.py",
+                "w",
             ) as f:
                 f.write(ast.unparse(tg.generate(bound_args.arguments).ast_node))
+
+            counter += 1
 
             # finally, call and return the function-under-test
             return _func(*args, **kwargs)
