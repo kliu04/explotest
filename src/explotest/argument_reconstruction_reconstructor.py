@@ -23,6 +23,8 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         object.__setattr__(self, "backup_reconstructor", PickleReconstructor(file_path))
 
     def _ast(self, parameter, argument):
+        # corresponds to: setattr(x, attribute_name, generate_attribute_value)
+        # or falls back to pickling
         if is_primitive(argument):
             return Reconstructor._reconstruct_primitive(parameter, argument)
         elif ArgumentReconstructionReconstructor.is_class_instance(argument):
@@ -123,17 +125,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         _clone = ast.fix_missing_locations(_clone)
         ptf_body.append(_clone)
         for attribute_name, attribute_value in attributes:
-            if is_primitive(attribute_value):
-                deps.append(self._ast(attribute_name, attribute_value))
-                # corresponds to: setattr(x, attribute_name, attribute_value)
-            elif ArgumentReconstructionReconstructor.is_class_instance(attribute_value):
-                # corresponds to: setattr(x, attribute_name, generate_attribute_name)
-                deps.append(self._ast(attribute_name, attribute_value))
-            else:
-                # if unsettable, should fall back on pickling
-                deps.append(
-                    self.backup_reconstructor._ast(attribute_name, attribute_value)
-                )
+            deps.append(self._ast(attribute_name, attribute_value))
             _setattr = ast.Expr(
                 value=ast.Call(
                     func=ast.Name(id="setattr", ctx=ast.Load()),
