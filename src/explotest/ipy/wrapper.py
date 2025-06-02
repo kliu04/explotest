@@ -1,5 +1,9 @@
+import ast
+from pathlib import Path
+
 import IPython
-from IPython.core.magic_arguments import magic_arguments, argument, parse_argstring
+from IPython.core.magic_arguments import magic_arguments, argument
+import IPython.core.magic_arguments
 
 import src.explotest.helpers
 from .frontend import FrontEnd
@@ -50,7 +54,7 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
     #     """
     # )
     def generate_tests_wrapped(parameter_s=''):
-        args = parse_argstring(generate_tests_wrapped, parameter_s)
+        args = IPython.core.magic_arguments.parse_argstring(generate_tests_wrapped, parameter_s)
         mode = None
         if args.mode == 'pickle':
             mode = Mode.PICKLE
@@ -62,7 +66,8 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
 
         ipy_frontend = FrontEnd(ipython, int(args.lineno))
 
-        tg = TestGenerator(ipy_frontend.call_on_lineno.id, args.filename, mode)
-        tg.generate(ipy_frontend.function_params_and_args())
+        tg = TestGenerator(ipy_frontend.call_on_lineno.func.id, Path('.'), mode)
+        with open(args.filename, 'w+') as file:
+            file.write(ast.unparse(tg.generate(ipy_frontend.function_params_and_args()).ast_node))
 
     return generate_tests_wrapped
