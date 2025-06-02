@@ -8,9 +8,9 @@ from test_fixture_generation import sample_arg_reconstruct_body
 
 
 class TestGeneratedTest:
-    fixture_afpbs = PyTestFixture([], 'abstract_factory_proxy_bean_singleton', [Pass()])
-    fixture_kevin_liu = PyTestFixture([], 'kevin_liu', [Pass()])
-    fixture_x = PyTestFixture([fixture_afpbs, fixture_kevin_liu], 'x', sample_arg_reconstruct_body())
+    fixture_afpbs = PyTestFixture([], 'abstract_factory_proxy_bean_singleton', [Pass()], Return(value=Constant(value=None)))
+    fixture_kevin_liu = PyTestFixture([], 'kevin_liu', [Pass()], Return(value=Constant(value=None)))
+    fixture_x = PyTestFixture([fixture_afpbs, fixture_kevin_liu], 'x', sample_arg_reconstruct_body(), Return(value=Constant(value=None)))
     assignment = Assign(targets=[Name(id='result', ctx=Store())],
                         value=Call(func=Name(id='call', ctx=Load()), args=[Name(id='x')]))
     imports = [
@@ -22,10 +22,10 @@ class TestGeneratedTest:
 
     @pytest.fixture
     def tut(self):
-        tut = GeneratedTest('call', self.imports, self.all_imports, self.assignment, [], [])
+        tut = GeneratedTest(self.imports, self.all_imports, self.assignment, [], [])
         return tut
 
-    def test_whole_test_generation(seltut):
+    def test_whole_test_generation(self, tut):
         from pathlib import Path
         test_read = Path('../test_data/test_generated_test_expected_test.py').read_text()
         compiled = parse(test_read)
