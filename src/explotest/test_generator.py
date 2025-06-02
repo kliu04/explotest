@@ -45,12 +45,15 @@ class TestGenerator:
 
         return imports
 
-    def generate(self, bindings: Dict[str, Any]) -> GeneratedTest:
+    def generate(self, bindings: Dict[str, Any], definitions: list[ast.FunctionDef | ast.ClassDef | ast.FunctionDef] = None) -> GeneratedTest:
         """
         Creates a test for the function-under-test specified by the TestGenerator.
         Provide a set of parameter bindings (parameter -> value)
         to create a test that reconstructs those bindings into a test.
         """
+        if definitions is None:
+            definitions = []
+
         params = list(bindings.keys())
         filename = self.file_path.stem
 
@@ -69,5 +72,5 @@ class TestGenerator:
             asts,
             return_ast,
             [],
-            [],  # FIXME: what is this?
+            definitions,
         )

@@ -53,8 +53,8 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
     #     End reading lines here (inclusive)
     #     """
     # )
-    def generate_tests_wrapped(parameter_s=''):
-        args = IPython.core.magic_arguments.parse_argstring(generate_tests_wrapped, parameter_s)
+    def generate_tests(parameter_s=''):
+        args = IPython.core.magic_arguments.parse_argstring(generate_tests, parameter_s)
         mode = None
         if args.mode == 'pickle':
             mode = Mode.PICKLE
@@ -67,7 +67,9 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
         ipy_frontend = FrontEnd(ipython, int(args.lineno))
 
         tg = TestGenerator(ipy_frontend.call_on_lineno.func.id, Path('.'), mode)
+        generated_test = tg.generate(ipy_frontend.function_params_and_args())
         with open(args.filename, 'w+') as file:
-            file.write(ast.unparse(tg.generate(ipy_frontend.function_params_and_args()).ast_node))
+            file.write(ast.unparse(generated_test.ast_node))
+        return generated_test
 
-    return generate_tests_wrapped
+    return generate_tests
