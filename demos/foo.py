@@ -1,3 +1,4 @@
+from explotest import Mode
 from explotest.explore import explore
 
 
@@ -14,7 +15,7 @@ class BST:
     def __init__(self):
         self.root = None
 
-    @explore
+    @explore(mode=Mode.RECONSTRUCT)
     def _search(self, node: Node | None, value: int) -> Node | None:
         if node is None:
             return None

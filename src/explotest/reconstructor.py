@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast, Dict, Any
 
-from src.explotest.pytest_fixture import PyTestFixture
+from .pytest_fixture import PyTestFixture
 
 
 @dataclass(frozen=True)

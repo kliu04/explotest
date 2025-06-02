@@ -3,14 +3,14 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
 
-from src.explotest.argument_reconstruction_reconstructor import (
+from .argument_reconstruction_reconstructor import (
     ArgumentReconstructionReconstructor,
 )
-from src.explotest.generated_test import GeneratedTest
-from src.explotest.helpers import Mode
-from src.explotest.helpers import sanitize_name
-from src.explotest.pickle_reconstructor import PickleReconstructor
-from src.explotest.reconstructor import Reconstructor
+from .generated_test import GeneratedTest
+from .helpers import Mode
+from .helpers import sanitize_name
+from .pickle_reconstructor import PickleReconstructor
+from .reconstructor import Reconstructor
 
 
 class TestGenerator:

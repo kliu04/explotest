@@ -4,8 +4,8 @@ import inspect
 import os
 from pathlib import Path
 
-from src.explotest.helpers import Mode, is_running_under_test, sanitize_name
-from src.explotest.test_generator import TestGenerator
+from .helpers import Mode, is_running_under_test, sanitize_name
+from .test_generator import TestGenerator
 
 
 def explore(func=None, mode=Mode.PICKLE):

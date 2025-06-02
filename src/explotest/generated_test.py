@@ -2,7 +2,7 @@ import ast
 from _ast import FunctionDef
 from dataclasses import dataclass
 
-from src.explotest.pytest_fixture import PyTestFixture
+from .pytest_fixture import PyTestFixture
 
 
 @dataclass(frozen=True)

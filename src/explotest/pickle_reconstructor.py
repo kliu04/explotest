@@ -6,9 +6,9 @@ from typing import cast
 
 import dill  # type: ignore
 
-from src.explotest.helpers import is_primitive
-from src.explotest.pytest_fixture import PyTestFixture
-from src.explotest.reconstructor import Reconstructor
+from .helpers import is_primitive
+from .pytest_fixture import PyTestFixture
+from .reconstructor import Reconstructor
 
 
 @dataclass(frozen=True)

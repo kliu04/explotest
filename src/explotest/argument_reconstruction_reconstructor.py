@@ -1,13 +1,16 @@
 import ast
 import inspect
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
-from src.explotest.helpers import is_primitive
-from src.explotest.pickle_reconstructor import PickleReconstructor
-from src.explotest.pytest_fixture import PyTestFixture
-from src.explotest.reconstructor import Reconstructor
+from .helpers import is_primitive, is_collection
+from .pickle_reconstructor import PickleReconstructor
+from .pytest_fixture import PyTestFixture
+from .reconstructor import Reconstructor
+
+X = TypeVar("X")
 
 
 @dataclass(frozen=True)
@@ -30,7 +33,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
     @staticmethod
     def is_class_instance(obj: Any) -> bool:
         """True iff object is an instance of a user-defined class."""
-        # TODO: this does not work
+        # FIXME: this does not work
         return not inspect.isfunction(obj)
 
     def _reconstruct_object_instance(self, parameter: str, obj: Any) -> PyTestFixture:
@@ -49,13 +52,52 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         attributes = inspect.getmembers(obj, predicate=lambda x: not callable(x))
         attributes = list(filter(lambda x: x[0] not in builtins, attributes))
         ptf_body: list[ast.AST] = []
+        deps: list[PyTestFixture] = []
+
         # create an instance without calling __init__
         # E.g., clone = foo.Foo.__new__(foo.Foo) (for file foo.py that defines a class Foo)
 
         clone_name = f"clone_{parameter}"
-        module_path: str | None = inspect.getsourcefile(type(obj))
-        if module_path is None:
-            raise Exception(f"module at {module_path} not found.")
+
+        if is_collection(obj):
+
+            if isinstance(obj, dict):
+                raise NotImplementedError()
+
+            unique_names = [f"test_{uuid.uuid4().hex[:8]}" for _ in range(len(obj))]
+            for i in range(len(obj)):
+                deps.append(self._ast(unique_names[i], obj[i]))
+
+            collection_ast_type: Any
+            if isinstance(obj, list):
+                collection_ast_type = ast.List
+            elif isinstance(obj, tuple):
+                collection_ast_type = ast.Tuple
+            elif isinstance(obj, set):
+                collection_ast_type = ast.Set
+            else:
+                assert False  # unreachable
+
+            _clone = ast.Assign(
+                targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                value=collection_ast_type(
+                    elts=[
+                        ast.Name(id=unique_name, ctx=ast.Load())
+                        for unique_name in unique_names
+                    ],
+                    ctx=ast.Load(),
+                ),
+            )
+            _clone = ast.fix_missing_locations(_clone)
+            ptf_body.append(_clone)
+            # Return the clone
+            ret = ast.fix_missing_locations(
+                ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
+            )
+            return PyTestFixture(deps, parameter, ptf_body, ret)
+
+        module_path: str | None = inspect.getfile(type(obj))
+        # FIXME: think about lists!!!!
 
         module_path: Path = Path(module_path)  # type: ignore
         module_name = module_path.stem  # type: ignore
@@ -80,28 +122,13 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         )
         _clone = ast.fix_missing_locations(_clone)
         ptf_body.append(_clone)
-        deps = []
         for attribute_name, attribute_value in attributes:
             if is_primitive(attribute_value):
+                deps.append(self._ast(attribute_name, attribute_value))
                 # corresponds to: setattr(x, attribute_name, attribute_value)
-                _setattr = ast.Expr(
-                    value=ast.Call(
-                        func=ast.Name(id="setattr", ctx=ast.Load()),
-                        args=[
-                            ast.Name(id=clone_name, ctx=ast.Load()),
-                            ast.Name(id=f"'{attribute_name}'", ctx=ast.Load()),
-                            ast.Constant(value=attribute_value),
-                        ],
-                    )
-                )
-                _setattr = ast.fix_missing_locations(_setattr)
-                ptf_body.append(_setattr)
-                continue
             elif ArgumentReconstructionReconstructor.is_class_instance(attribute_value):
                 # corresponds to: setattr(x, attribute_name, generate_attribute_name)
-                deps.append(
-                    self._reconstruct_object_instance(attribute_name, attribute_value)
-                )
+                deps.append(self._ast(attribute_name, attribute_value))
             else:
                 # if unsettable, should fall back on pickling
                 deps.append(

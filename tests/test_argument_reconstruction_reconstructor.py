@@ -130,3 +130,11 @@ def test_reconstruct_lambda(setup):
     assert asts[0].parameter == "f"
     pattern = r"with open\(..*\) as f:\s+f = dill\.loads\(f\.read\(\)\)"
     assert re.search(pattern, ast.unparse(asts[0].body[0]))
+
+
+def test_reconstruct_list(setup):
+    class Foo:
+        pass
+
+    asts = setup.asts({"f": [1, Foo(), Foo()]})
+    print(asts)

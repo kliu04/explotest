@@ -1,2 +1,2 @@
-from src.explotest.explore import explore
-from src.explotest.helpers import Mode
+from .explore import explore
+from .helpers import Mode
