@@ -1,12 +1,11 @@
 import ast
 import os
-import uuid
 from dataclasses import dataclass
 from typing import cast
 
 import dill  # type: ignore
 
-from .helpers import is_primitive
+from .helpers import is_primitive, random_id
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 
@@ -19,7 +18,7 @@ class PickleReconstructor(Reconstructor):
             return Reconstructor._reconstruct_primitive(parameter, argument)
 
         # create a unique ID for the pickled object
-        pickled_id = str(uuid.uuid4().hex)[:8]
+        pickled_id = random_id()
 
         # write the pickled object to file
         os.makedirs(f"{self.file_path.parent}/pickled", exist_ok=True)

@@ -1,4 +1,5 @@
 import sys
+import uuid
 from enum import Enum
 from typing import Any
 
@@ -11,6 +12,10 @@ class Mode(Enum):
     PICKLE = 1
     RECONSTRUCT = 2
     SLICE = 3
+
+
+def random_id():
+    return uuid.uuid4().hex[:8]
 
 
 def sanitize_name(name: str) -> str:

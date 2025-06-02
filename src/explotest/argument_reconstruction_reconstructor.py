@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar, cast
 
-from .helpers import is_primitive, is_collection
+from .helpers import is_primitive, is_collection, random_id
 from .pickle_reconstructor import PickleReconstructor
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
@@ -47,16 +47,38 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             for i in range(len(collection)):
                 deps.append(self._ast(unique_names[i], list(collection.values())[i]))
 
+            def key_name():
+                yield f"key_{random_id()}"
+
+            new_keys: list[Any] = []
+            for i, key in enumerate(collection.keys()):
+                if is_primitive(key):
+                    new_keys.append(key)
+                else:
+                    new_keys.append(next(key_name()))
+
+            new_values: list[ast.expr] = []
+            for i, value in enumerate(collection.values()):
+                if is_primitive(value):
+                    new_values.append(cast(ast.expr, ast.Constant(value=value)))
+                else:
+                    deps.append(
+                        self._ast(unique_names[i], list(collection.values())[i])
+                    )
+                    new_values.append(
+                        cast(
+                            ast.expr,
+                            ast.Name(id=f"generate_{unique_names[i]}", ctx=ast.Load()),
+                        )
+                    )
+
             _clone = cast(
                 ast.AST,
                 ast.Assign(
                     targets=[ast.Name(id=parameter, ctx=ast.Store())],
                     value=ast.Dict(
-                        keys=list(collection.keys()),
-                        values=[
-                            ast.Name(id=unique_name, ctx=ast.Load())
-                            for unique_name in unique_names
-                        ],
+                        keys=new_keys,
+                        values=new_values,
                     ),
                 ),
             )
