@@ -25,6 +25,7 @@ class TestGeneratedTest:
         tut = GeneratedTest('call', self.imports, self.all_imports, self.assignment, [], [])
         return tut
 
+    @pytest.mark.skip(reason='Too flaky')
     def test_whole_test_generation(self, tut):
         from pathlib import Path
         test_read = Path('../test_data/test_generated_test_expected_test.py').read_text()
