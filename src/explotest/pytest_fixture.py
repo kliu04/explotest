@@ -19,5 +19,5 @@ class PyTestFixture:
 
         # creates a new function definition with name generate_{parameter} and requests the dependent fixtures.
         return ast.fix_missing_locations(ast.FunctionDef(name=f'generate_{self.parameter}', args=ast.arguments(
-            args=[ast.arg(arg=f'generate_{dependency.parameter}') for dependency in self.depends]), body=self.body,
+            args=[ast.arg(arg=f'generate_{dependency.parameter}') for dependency in self.depends]), body=self.body + [self.ret],
                                                          decorator_list=[pytest_deco]))

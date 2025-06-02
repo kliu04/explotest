@@ -253,3 +253,6 @@ fabric.properties
 
 # PyPI configuration file
 .pypirc
+
+# because we use pip-tools
+./requirements.txt

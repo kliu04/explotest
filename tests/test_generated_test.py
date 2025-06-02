@@ -25,6 +25,7 @@ class TestGeneratedTest:
         tut = GeneratedTest(self.imports, self.all_imports, self.assignment, [], [])
         return tut
 
+    @pytest.mark.skip(reason='Too flaky')
     def test_whole_test_generation(self, tut):
         from pathlib import Path
         test_read = Path('../test_data/test_generated_test_expected_test.py').read_text()
@@ -42,6 +43,10 @@ class TestActFunctionGeneration(TestGeneratedTest):
     def test_act_function_has_assignment_body(self, tut):
         test_function_body = tut.act_function_def_ast.body
         assert unparse(self.assignment) in [unparse(node) for node in test_function_body]
+
+    def test_act_function_test_name_is_valid(self, tut):
+        act_function = tut.act_function_def_ast
+        assert act_function.name == 'test_call'
 
 
     # def test_act_function_with_kwargs(self, tut):

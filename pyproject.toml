@@ -30,8 +30,20 @@ classifiers = [
 ]
 license = "LGPL-3.0-or-later"
 license-files = ["LICEN[CS]E*"]
+dependencies = [
+    "dill"
+]
+
+[project.optional-dependencies]
+test = ["pytest", "numpy"]
 
 
 [project.urls]
 Homepage = "https://github.com/kliu04/explotest"
 Issues = "https://github.com/kliu04/explotest/issues"
+
+
+[tool.pytest.ini_options]
+pythonpath = [
+  ".", "src"
+]
