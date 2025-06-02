@@ -22,7 +22,7 @@ class TestGeneratedTest:
 
     @pytest.fixture
     def tut(self):
-        tut = GeneratedTest(self.imports, self.all_imports, self.assignment, [], [])
+        tut = GeneratedTest('call', self.imports, self.all_imports, self.assignment, [], [])
         return tut
 
     def test_whole_test_generation(self, tut):
@@ -42,6 +42,10 @@ class TestActFunctionGeneration(TestGeneratedTest):
     def test_act_function_has_assignment_body(self, tut):
         test_function_body = tut.act_function_def_ast.body
         assert unparse(self.assignment) in [unparse(node) for node in test_function_body]
+
+    def test_act_function_test_name_is_valid(self, tut):
+        act_function = tut.act_function_def_ast
+        assert act_function.name == 'test_call'
 
 
     # def test_act_function_with_kwargs(self, tut):

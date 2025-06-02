@@ -35,3 +35,9 @@ license-files = ["LICEN[CS]E*"]
 [project.urls]
 Homepage = "https://github.com/kliu04/explotest"
 Issues = "https://github.com/kliu04/explotest/issues"
+
+
+[tool.pytest.ini_options]
+pythonpath = [
+  ".", "src"
+]

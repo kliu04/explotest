@@ -7,6 +7,7 @@ from src.explotest.pytest_fixture import PyTestFixture
 
 @dataclass(frozen=True)
 class GeneratedTest:
+    function_name: str
     imports: list[ast.Import | ast.ImportFrom]  # needed imports for the test file
     fixtures: list[PyTestFixture]  # argument generators
     act_phase: ast.Assign  # calling the function-under-test
@@ -40,7 +41,7 @@ class GeneratedTest:
         ]
 
         generated_defn = ast.FunctionDef(
-            name=f"test_hello",  # FIXME: get name
+            name=f"test_{self.function_name}",  # FIXME: get name
             args=ast.arguments(args=requested_fixtures),
             body=(self.decompose_steps() + [self.act_phase] + self.asserts),
         )

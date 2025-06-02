@@ -56,6 +56,7 @@ class TestGenerator:
         asts = self.reconstructor.asts(bindings)
 
         return GeneratedTest(
+            self.function_name,
             self._imports(filename),
             asts,
             ast.Assign(
