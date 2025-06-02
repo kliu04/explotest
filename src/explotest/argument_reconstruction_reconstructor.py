@@ -34,7 +34,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         return not inspect.isfunction(obj)
 
     def _reconstruct_object_instance(self, parameter: str, obj: Any) -> PyTestFixture:
-        """Return an PTF representation of a clone of obj by setting attributes equal to obj, using fully qualified class name."""
+        """Return an PTF representation of a clone of obj by setting attributes equal to obj."""
 
         # taken from inspect.getmembers(Foo()) on empty class Foo
         builtins = [
