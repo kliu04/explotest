@@ -22,7 +22,7 @@ class PickleReconstructor(Reconstructor):
 
         # write the pickled object to file
         pickled_path = f"{self.file_path.parent}/pickled/{parameter}_{pickled_id}.pkl"
-        with open(pickled_path, "wb") as f:
+        with open(pickled_path, "wb+") as f:
             f.write(dill.dumps(argument))
 
         generated_ast = cast(

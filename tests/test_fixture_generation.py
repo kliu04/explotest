@@ -28,7 +28,7 @@ class TestFixtureGeneration:
         """
         This test tests that the body supplied is correctly injected into the new fixture.
         """
-        result = PyTestFixture([], var_name, body)
+        result = PyTestFixture([], var_name, body, Return(value=Constant(value=None)))
         expected = FunctionDef(name=f'generate_{var_name}', args=arguments(), body=body,
             decorator_list=[Attribute(value=Name(id='pytest', ctx=Load()), attr='fixture', ctx=Load())])
 
@@ -44,11 +44,11 @@ class TestFixtureGeneration:
         Case: x -> abstract_factory_proxy_bean_singleton, kevin_liu
         """
         depend_abstract_factory_proxy_bean_singleton = PyTestFixture([], 'abstract_factory_proxy_bean_singleton',
-                                                                     [Pass()])
-        depend_kevin_liu = PyTestFixture([], 'kevin_liu', [Pass()])
+                                                                     [Pass()], Return(value=Constant(value=None)))
+        depend_kevin_liu = PyTestFixture([], 'kevin_liu', [Pass()], Return(value=Constant(value=None)))
 
         result_with_depends = PyTestFixture([depend_abstract_factory_proxy_bean_singleton, depend_kevin_liu], var_name,
-                                            body)
+                                            body, Return(value=Constant(value=None)))
 
         args_as_string = [arg.arg for arg in result_with_depends.ast_node.args.args]
 
