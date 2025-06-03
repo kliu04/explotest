@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar, cast
 
-from .helpers import is_primitive, is_collection, random_id, uniquify
+from .helpers import is_primitive, is_collection, random_id
 from .pickle_reconstructor import PickleReconstructor
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
@@ -155,7 +155,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         _clone = ast.fix_missing_locations(_clone)
         ptf_body.append(_clone)
         for attribute_name, attribute_value in attributes:
-            if is_primitive(attribute_value):
+            if False:
                 _setattr = ast.Expr(
                     value=ast.Call(
                         func=ast.Name(id="setattr", ctx=ast.Load()),
@@ -167,9 +167,9 @@ class ArgumentReconstructionReconstructor(Reconstructor):
                     )
                 )
             else:
-                uniquified_name = uniquify(
-                    attribute_name
-                )  # needed to avoid name collisions
+                uniquified_name = (
+                    f"{parameter}_{attribute_name}"  # needed to avoid name collisions
+                )
                 deps.append(self._ast(uniquified_name, attribute_value))
                 _setattr = ast.Expr(
                     value=ast.Call(
