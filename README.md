@@ -26,6 +26,6 @@ pip-compile -o requirements.txt ./pyproject.toml
 pip install -r requirements.txt
 ```
 
-### Copyright
+## Copyright
 
 ExploTest is free and open source software, licensed under the GNU LGPL v3 or any later version.
