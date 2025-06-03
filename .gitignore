@@ -259,3 +259,5 @@ requirements.txt
 
 test_data/pickled/
 demos/pickled/
+
+**/.DS_Store
