@@ -58,6 +58,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         if bad:
             return False
         else:
+            return True
             # TODO: refactor this shit to BFS
             data_only = {
                 n: v

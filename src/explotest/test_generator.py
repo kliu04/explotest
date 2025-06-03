@@ -64,8 +64,6 @@ class TestGenerator:
         """
         if definitions is None:
             definitions = []
-        if injected_imports is None:
-            injected_imports = []
 
         params = list(bindings.keys())
         filename = self.file_path.stem if str(self.file_path) != "." else None
