@@ -29,7 +29,7 @@ def sanitize_name(name: str) -> str:
 def is_primitive(x: Any) -> bool:
     """True iff x is a primitive type (int, float, str, bool) or a list of primitive types."""
 
-    primitive_t = int | float | str | bool | bytearray | None
+    primitive_t = int | float | complex | str | bool | None
 
     def is_collection_of_primitive(cox: collection_t) -> bool:
         if isinstance(cox, dict):

@@ -153,7 +153,7 @@ def test_reconstruct_list(setup):
     assert re.search(pattern, ast.unparse(asts[0].body[0]))
 
 
-is_class_instance = ArgumentReconstructionReconstructor.is_class_instance
+is_reconstructible = ArgumentReconstructionReconstructor.is_reconstructible
 
 
 class TestObjectDetection:
@@ -163,57 +163,76 @@ class TestObjectDetection:
                 yield i
 
         generator = generator_creator(10)
-        assert not is_class_instance(generator)
+        assert not is_reconstructible(generator)
 
     def test_method(self):
         class C:
             def foo(self):
                 return self
 
-        assert not is_class_instance(C.foo)
+        assert not is_reconstructible(C.foo)
 
     def test_func(self):
         def f():
             return
 
-        assert not is_class_instance(f)
+        assert not is_reconstructible(f)
 
     def test_lambda(self):
-        assert not is_class_instance(lambda x: x)
+        assert not is_reconstructible(lambda x: x)
 
     def test_abc(self):
         a = abc.ABC()
-        assert is_class_instance(a)
-        pytest.fail(reason="decide whether ABC is an instance of a class?")
+        assert is_reconstructible(a)
+        # pytest.fail(reason="decide whether ABC is an instance of a class?")
 
     def test_abc_inheritor(self):
         class I(abc.ABC):
             pass
 
-        assert is_class_instance(I())
+        assert is_reconstructible(I())
 
     def test_class(self):
         class A:
             pass
 
-        assert not is_class_instance(A)
+        assert not is_reconstructible(A)
 
     def test_async_fun(self):
         async def coroutine():
             return None
 
-        assert not is_class_instance(coroutine)
+        assert not is_reconstructible(coroutine)
 
     def test_module(self):
         import numpy
 
-        assert not is_class_instance(numpy)
+        assert not is_reconstructible(numpy)
 
     def test_messed_up_async_generator(self):
         async def generator_async():
             yield None
 
-        assert not is_class_instance(generator_async)
+        assert not is_reconstructible(generator_async)
 
     def test_none(self):
-        assert not is_class_instance(None)
+        assert is_reconstructible(None)
+
+    def test_vanilla_obj(self):
+        class Vanilla:
+            def __init__(self, x):
+                self.x = x
+
+        v = Vanilla(10)
+        assert is_reconstructible(v)
+
+    def test_vanilla_obj_with_evil_topping(self):
+        class Vanilla:
+            def __init__(self, x):
+                self.x = x
+
+        def evil_generator():
+            yield 1
+
+        v = Vanilla(evil_generator())
+        assert not is_reconstructible(v)
