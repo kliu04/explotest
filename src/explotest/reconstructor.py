@@ -26,7 +26,6 @@ class Reconstructor(abc.ABC):
 
         return list(fixtures)
 
-
     @staticmethod
     def fixture_bfs(ptf: PyTestFixture) -> dict[PyTestFixture, None]:
         # bfs on ptf and return all explored edges including itself.
@@ -41,8 +40,6 @@ class Reconstructor(abc.ABC):
                     explored[vertex] = None
                     q.append(vertex)
         return explored
-
-
 
     @abstractmethod
     def _ast(self, parameter: str, argument: Any) -> PyTestFixture: ...
