@@ -1,6 +1,5 @@
 import ast
 import inspect
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar, cast
@@ -39,54 +38,40 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         return not inspect.isfunction(obj)
 
     def _reconstruct_collection(self, parameter, collection) -> PyTestFixture:
+        # primitive values in collections will remain as is
+        # E.g., [1, 2, <Object1>, <Object2>] -> [1, 2, generate_object1_type_id, generate_object2_type_id]
+        # where id is an 8 digit random hex code
+
         deps = []
         ptf_body = []
-        unique_names = [f"test_{uuid.uuid4().hex[:8]}" for _ in range(len(collection))]
+
+        def generate_elt_name(t: str) -> str:
+            return f"{t}_{random_id()}"
+
+        def elt_to_ast(obj):
+            if is_primitive(obj):
+                return ast.Constant(value=obj)
+            else:
+                rename = generate_elt_name(type(obj))
+                deps.append(self._ast(rename, obj))
+                return ast.Name(id=f"generate_{rename}", ctx=ast.Load())
+
         if isinstance(collection, dict):
-
-            for i in range(len(collection)):
-                deps.append(self._ast(unique_names[i], list(collection.values())[i]))
-
-            def key_name():
-                yield f"key_{random_id()}"
-
-            new_keys: list[Any] = []
-            for i, key in enumerate(collection.keys()):
-                if is_primitive(key):
-                    new_keys.append(key)
-                else:
-                    new_keys.append(next(key_name()))
-
-            new_values: list[ast.expr] = []
-            for i, value in enumerate(collection.values()):
-                if is_primitive(value):
-                    new_values.append(cast(ast.expr, ast.Constant(value=value)))
-                else:
-                    deps.append(
-                        self._ast(unique_names[i], list(collection.values())[i])
-                    )
-                    new_values.append(
-                        cast(
-                            ast.expr,
-                            ast.Name(id=f"generate_{unique_names[i]}", ctx=ast.Load()),
-                        )
-                    )
+            d = {
+                elt_to_ast(key): elt_to_ast(value) for key, value in collection.items()
+            }
 
             _clone = cast(
                 ast.AST,
                 ast.Assign(
                     targets=[ast.Name(id=parameter, ctx=ast.Store())],
                     value=ast.Dict(
-                        keys=new_keys,
-                        values=new_values,
+                        keys=list(d.keys()),
+                        values=list(d.values()),
                     ),
                 ),
             )
         else:
-
-            for i in range(len(collection)):
-                deps.append(self._ast(unique_names[i], collection[i]))
-
             collection_ast_type: Any
             if isinstance(collection, list):
                 collection_ast_type = ast.List
@@ -97,15 +82,14 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             else:
                 assert False  # unreachable
 
+            collection_asts = list(map(elt_to_ast, collection))
+
             _clone = cast(
                 ast.AST,
                 ast.Assign(
                     targets=[ast.Name(id=parameter, ctx=ast.Store())],
                     value=collection_ast_type(
-                        elts=[
-                            ast.Name(id=unique_name, ctx=ast.Load())
-                            for unique_name in unique_names
-                        ],
+                        elts=collection_asts,
                         ctx=ast.Load(),
                     ),
                 ),
