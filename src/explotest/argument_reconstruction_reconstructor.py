@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar, cast
 
+# from tests.test_argument_reconstruction_reconstructor import is_reconstructible
 from .helpers import is_primitive, is_collection, random_id
 from .pickle_reconstructor import PickleReconstructor
 from .pytest_fixture import PyTestFixture
@@ -26,17 +27,49 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         # or falls back to pickling
         if is_primitive(argument):
             return Reconstructor._reconstruct_primitive(parameter, argument)
-        elif ArgumentReconstructionReconstructor.is_class_instance(argument):
+        elif ArgumentReconstructionReconstructor.is_reconstructible(argument):
             return self._reconstruct_object_instance(parameter, argument)
         else:
             return self.backup_reconstructor._ast(parameter, argument)
 
     @staticmethod
-    def is_class_instance(obj: Any) -> bool:
+    def is_reconstructible(obj: Any) -> bool:
         """True iff object is an instance of a user-defined class."""
-        # FIXME: this does not work
-        if not inspect.isclass(obj)
-            import builtins
+        bad = any(
+            [
+                inspect.ismodule(obj),
+                inspect.isclass(obj),
+                inspect.ismethod(obj),
+                inspect.isfunction(obj),
+                inspect.isgenerator(obj),
+                inspect.isgeneratorfunction(obj),
+                inspect.iscoroutine(obj),
+                inspect.iscoroutinefunction(obj),
+                inspect.isawaitable(obj),
+                inspect.isasyncgen(obj),
+                inspect.istraceback(obj),
+                inspect.isframe(obj),
+                inspect.isbuiltin(obj),
+                inspect.ismethodwrapper(obj),
+                inspect.isgetsetdescriptor(obj),
+                inspect.ismemberdescriptor(obj),
+            ]
+        )
+        if bad:
+            return False
+        else:
+            # TODO: refactor this shit to BFS
+            data_only = {
+                n: v
+                for n, v in inspect.getmembers(obj)
+                if not inspect.isroutine(v) and not n.startswith("__")
+            }
+            return all(
+                [
+                    ArgumentReconstructionReconstructor.is_reconstructible(o)
+                    for o in data_only.values()
+                ]
+            )
 
     def _reconstruct_collection(self, parameter, collection) -> PyTestFixture:
         # primitive values in collections will remain as is
