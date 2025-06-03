@@ -22,9 +22,8 @@ def test_reconstruct_object_instance(setup):
         y = 2
 
     asts = setup.asts({"x": Foo()})
-    assert len(asts) == 1
+    assert len(asts) == 3
     ptf = asts[0]
-    assert ptf.depends == []
     assert ptf.parameter == "x"
     assert len(ptf.body) == 3
     assign = ptf.body[0]
@@ -35,8 +34,8 @@ def test_reconstruct_object_instance(setup):
         ast.unparse(assign)
         == "clone_x = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
     )
-    assert ast.unparse(expr_1) == "setattr(clone_x, 'x', 1)"
-    assert ast.unparse(expr_2) == "setattr(clone_x, 'y', 2)"
+    assert ast.unparse(expr_1) == "setattr(clone_x, 'x', generate_x)"
+    assert ast.unparse(expr_2) == "setattr(clone_x, 'y', generate_y)"
 
 
 def test_reconstruct_object_instance_recursive_1(setup):
@@ -48,7 +47,7 @@ def test_reconstruct_object_instance_recursive_1(setup):
         bar = Bar()
 
     asts = setup.asts({"f": Foo()})
-    assert len(asts) == 1
+    assert len(asts) == 2
 
     ptf = asts[0]
 
@@ -82,7 +81,7 @@ def test_reconstruct_object_instance_recursive_2(setup):
 
     f = Foo()
     asts = setup.asts({"f": f})
-    assert len(asts) == 1
+    assert len(asts) == 3
 
     ptf = asts[0]
 
@@ -137,4 +136,17 @@ def test_reconstruct_list(setup):
         pass
 
     asts = setup.asts({"f": [1, Foo(), Foo()]})
-    print(asts)
+
+    assert len(asts) == 3
+    assert len(asts[0].depends) == 2
+    assert asts[0].depends[0] is asts[1]
+    assert asts[0].depends[1] is asts[2]
+
+    pattern = r"clone_Foo_.+ = .+.Foo.__new__(.*.Foo)"
+    print(ast.unparse(asts[1].body[0]))
+    assert re.search(pattern, ast.unparse(asts[1].body[0]))
+    assert re.search(pattern, ast.unparse(asts[2].body[0]))
+
+    pattern = r"f = \[1, generate_Foo_.+, generate_Foo_.+\]"
+    print(ast.unparse(asts[0].body[0]))
+    assert re.search(pattern, ast.unparse(asts[0].body[0]))
