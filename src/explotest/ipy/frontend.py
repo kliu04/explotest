@@ -66,7 +66,7 @@ class FrontEnd(ABC):
 
         """
         Initializes a test generator with the given shell.
-        Creates a test for specific function invocation on the line provided. 
+        Creates a test for specific function invocation on the line provided.
         :param shell: The shell to read execution history from
         :param invocation_lineno: The line that the user called the function-to-test on.
         :param target_lines: The lines to read to "try" to read from. In pickle mode, probably reading all lines is good.
