@@ -29,7 +29,7 @@ class TestGenerator:
             case Mode.PICKLE:
                 self.reconstructor = PickleReconstructor(file_path)
             case Mode.SLICE:
-                raise NotImplementedError(f"Slicing is currently not supported.")
+                raise NotImplementedError("Slicing is currently not supported.")
             case _:
                 raise Exception(f"Unknown Mode: {mode}")
 
