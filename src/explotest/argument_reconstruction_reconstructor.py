@@ -52,7 +52,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             if is_primitive(obj):
                 return ast.Constant(value=obj)
             else:
-                rename = generate_elt_name(type(obj))
+                rename = generate_elt_name(obj.__class__.__name__)
                 deps.append(self._ast(rename, obj))
                 return ast.Name(id=f"generate_{rename}", ctx=ast.Load())
 
