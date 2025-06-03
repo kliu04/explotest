@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from ast import *
 from src.explotest.pytest_fixture import PyTestFixture
@@ -21,3 +23,19 @@ def test_reconstructor_fixture_bfs():
     n4.depends = [n2]
 
     assert {n1, n2, n3, n4, n5} == set(Reconstructor.fixture_bfs(n1))
+
+class ReconstructorInheritor(Reconstructor):
+
+    def _ast(self, parameter: str, argument: Any) -> PyTestFixture:
+        return _make_ptf_empty(argument, parameter)
+
+
+def test_ast_walks_all_fixtures():
+    r = ReconstructorInheritor('')
+    result = r.asts({
+        'x': [_make_ptf_empty([], '1')],
+        'y': [],
+        'z': []
+    })
+
+    assert {'x', 'y', 'z', '1'} == set([v.parameter for v in result])
