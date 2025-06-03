@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar, cast
 
-from .helpers import is_primitive, is_collection, random_id
+from .helpers import is_primitive, is_collection, random_id, uniquify
 from .pickle_reconstructor import PickleReconstructor
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
@@ -155,17 +155,32 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         _clone = ast.fix_missing_locations(_clone)
         ptf_body.append(_clone)
         for attribute_name, attribute_value in attributes:
-            deps.append(self._ast(attribute_name, attribute_value))
-            _setattr = ast.Expr(
-                value=ast.Call(
-                    func=ast.Name(id="setattr", ctx=ast.Load()),
-                    args=[
-                        ast.Name(id=clone_name, ctx=ast.Load()),
-                        ast.Name(id=f"'{attribute_name}'", ctx=ast.Load()),
-                        ast.Name(id=f"generate_{attribute_name}", ctx=ast.Load()),
-                    ],
+            if is_primitive(attribute_value):
+                _setattr = ast.Expr(
+                    value=ast.Call(
+                        func=ast.Name(id="setattr", ctx=ast.Load()),
+                        args=[
+                            ast.Name(id=clone_name, ctx=ast.Load()),
+                            ast.Name(id=f"'{attribute_name}'", ctx=ast.Load()),
+                            ast.Constant(value=attribute_value),
+                        ],
+                    )
                 )
-            )
+            else:
+                uniquified_name = uniquify(
+                    attribute_name
+                )  # needed to avoid name collisions
+                deps.append(self._ast(uniquified_name, attribute_value))
+                _setattr = ast.Expr(
+                    value=ast.Call(
+                        func=ast.Name(id="setattr", ctx=ast.Load()),
+                        args=[
+                            ast.Name(id=clone_name, ctx=ast.Load()),
+                            ast.Name(id=f"'{attribute_name}'", ctx=ast.Load()),
+                            ast.Name(id=f"generate_{uniquified_name}", ctx=ast.Load()),
+                        ],
+                    )
+                )
             _setattr = ast.fix_missing_locations(_setattr)
             ptf_body.append(_setattr)
         # Return the clone

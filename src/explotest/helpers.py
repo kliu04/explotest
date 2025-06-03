@@ -18,6 +18,10 @@ def random_id():
     return uuid.uuid4().hex[:8]
 
 
+def uniquify(name: str) -> str:
+    return f"{name}_{random_id()}"
+
+
 def sanitize_name(name: str) -> str:
     return name.replace(".", "_")
 
