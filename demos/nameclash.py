@@ -12,8 +12,8 @@ class Bar:
 
 
 @explore(mode=Mode.RECONSTRUCT)
-def myfunc(foo, bar):
+def myfunc(foo, bar, bar2):
     return
 
 
-myfunc(Foo(), Bar())
+myfunc(Foo(), Bar(), Bar())
