@@ -5,6 +5,7 @@ from IPython.terminal.interactiveshell import TerminalInteractiveShell
 from src.explotest.generated_test import GeneratedTest
 from src.explotest.ipy.wrapper import generate_tests_wrapper
 
+
 def patched_argstring_pickle():
     class Patched:
         filename = "test_output.py"

@@ -1,7 +1,6 @@
+from ast import *
 from typing import Any
 
-import pytest
-from ast import *
 from src.explotest.pytest_fixture import PyTestFixture
 from src.explotest.reconstructor import Reconstructor
 
