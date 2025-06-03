@@ -35,6 +35,7 @@ class Reconstructor(abc.ABC):
         q.append(ptf)
         while len(q) != 0:
             current_vertex = q.popleft()
+            explored[current_vertex] = None
             for vertex in current_vertex.depends:
                 if vertex not in explored:
                     explored[vertex] = None

@@ -257,5 +257,5 @@ fabric.properties
 # because we use pip-tools
 requirements.txt
 
-./test_data/pickled
-./demos/pickled
+test_data/pickled/
+demos/pickled/
