@@ -1,6 +1,9 @@
+import abc
 import ast
 import re
+from abc import abstractmethod
 
+import pytest
 from pytest import fixture
 
 from src.explotest.argument_reconstruction_reconstructor import (
@@ -148,3 +151,69 @@ def test_reconstruct_list(setup):
     pattern = r"f = \[1, generate_Foo_.+, generate_Foo_.+\]"
     print(ast.unparse(asts[0].body[0]))
     assert re.search(pattern, ast.unparse(asts[0].body[0]))
+
+
+is_class_instance = ArgumentReconstructionReconstructor.is_class_instance
+
+
+class TestObjectDetection:
+    def test_generator(self):
+        def generator_creator(n: int):
+            for i in range(n):
+                yield i
+
+        generator = generator_creator(10)
+        assert not is_class_instance(generator)
+
+    def test_method(self):
+        class C:
+            def foo(self):
+                return self
+
+        assert not is_class_instance(C.foo)
+
+    def test_func(self):
+        def f():
+            return
+
+        assert not is_class_instance(f)
+
+    def test_lambda(self):
+        assert not is_class_instance(lambda x: x)
+
+    def test_abc(self):
+        a = abc.ABC()
+        assert is_class_instance(a)
+        pytest.fail(reason="decide whether ABC is an instance of a class?")
+
+    def test_abc_inheritor(self):
+        class I(abc.ABC):
+            pass
+
+        assert is_class_instance(I())
+
+    def test_class(self):
+        class A:
+            pass
+
+        assert not is_class_instance(A)
+
+    def test_async_fun(self):
+        async def coroutine():
+            return None
+
+        assert not is_class_instance(coroutine)
+
+    def test_module(self):
+        import numpy
+
+        assert not is_class_instance(numpy)
+
+    def test_messed_up_async_generator(self):
+        async def generator_async():
+            yield None
+
+        assert not is_class_instance(generator_async)
+
+    def test_none(self):
+        assert not is_class_instance(None)
