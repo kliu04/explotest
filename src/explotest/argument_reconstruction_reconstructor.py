@@ -35,7 +35,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
     def is_class_instance(obj: Any) -> bool:
         """True iff object is an instance of a user-defined class."""
         # FIXME: this does not work
-        return not inspect.isfunction(obj)
+        return not inspect.isfunction(obj) and not inspect.ismethod(obj)
 
     def _reconstruct_collection(self, parameter, collection) -> PyTestFixture:
         # primitive values in collections will remain as is
