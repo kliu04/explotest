@@ -2,12 +2,11 @@ import ast
 from pathlib import Path
 
 import IPython
-from IPython.core.magic_arguments import magic_arguments, argument
 import IPython.core.magic_arguments
+from IPython.core.magic_arguments import magic_arguments, argument
 
-import src.explotest.helpers
-from .frontend import FrontEnd
 from src.explotest.helpers import Mode
+from .frontend import FrontEnd
 from ..test_generator import TestGenerator
 
 
@@ -26,18 +25,18 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
         """,
     )
     @argument(
-        '--lineno',
-        dest='lineno',
+        "--lineno",
+        dest="lineno",
         help="""
         Target line number.
-        """
+        """,
     )
     @argument(
-        '--mode',
-        dest='mode',
+        "--mode",
+        dest="mode",
         help="""
         The method to re-create the args with.
-        """
+        """,
     )
     # @argument(
     #     '--start',
@@ -53,22 +52,26 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
     #     End reading lines here (inclusive)
     #     """
     # )
-    def generate_tests(parameter_s=''):
+    def generate_tests(parameter_s=""):
         args = IPython.core.magic_arguments.parse_argstring(generate_tests, parameter_s)
         mode = None
-        if args.mode == 'pickle':
+        if args.mode == "pickle":
             mode = Mode.PICKLE
-        elif args.mode == 'reconstruct':
+        elif args.mode == "reconstruct":
             mode = Mode.RECONSTRUCT
-        elif args.mode == 'slice':
+        elif args.mode == "slice":
             mode = Mode.SLICE
-            raise NotImplementedError('Slice is not implemented yet.')
+            raise NotImplementedError("Slice is not implemented yet.")
 
         ipy_frontend = FrontEnd(ipython, int(args.lineno))
 
-        tg = TestGenerator(ipy_frontend.call_on_lineno.func.id, Path('.'), mode)
-        generated_test = tg.generate(ipy_frontend.function_params_and_args(), definitions=[ipy_frontend.function_def], injected_imports=ipy_frontend.repl_imports)
-        with open(args.filename, 'w+') as file:
+        tg = TestGenerator(ipy_frontend.call_on_lineno.func.id, Path("."), mode)
+        generated_test = tg.generate(
+            ipy_frontend.function_params_and_args(),
+            definitions=[ipy_frontend.function_def],
+            injected_imports=ipy_frontend.repl_imports,
+        )
+        with open(args.filename, "w+") as file:
             file.write(ast.unparse(generated_test.ast_node))
         return generated_test
 

@@ -1,11 +1,9 @@
 import ast
-import pathlib
 from _ast import Import, ImportFrom
 from abc import ABC
 from dataclasses import dataclass
 from typing import Iterable, Any, Generator
 
-import dill
 from IPython import InteractiveShell
 
 
@@ -14,6 +12,7 @@ class IPythonLineRun:
     session_id: int
     input: ast.Module
     output: str | None  # why, ipython?
+
 
 class IPythonExecutionHistory:
     d: dict[int, IPythonLineRun]  # mapping of lineno to IPythonLineRun
@@ -27,7 +26,7 @@ class IPythonExecutionHistory:
                 parsed_input = ast.parse(input)
                 self.d[lineno] = IPythonLineRun(session, parsed_input, output)
             except SyntaxError:
-                print(f'Error on line: {lineno} invalid syntax, ignoring.')
+                print(f"Error on line: {lineno} invalid syntax, ignoring.")
 
     def __getitem__(self, item: int):
         return self.d[item]
@@ -41,18 +40,28 @@ class IPythonExecutionHistory:
     def __len__(self):
         return len(self.d)
 
+
 class FrontEnd(ABC):
     shell: InteractiveShell
     history: IPythonExecutionHistory
     invocation_lineno: int
     target_lines: tuple[int, int]
 
-    def __init__(self, shell: InteractiveShell, invocation_lineno: int, target_lines: tuple[int, int] = (-1, -1)):
+    def __init__(
+        self,
+        shell: InteractiveShell,
+        invocation_lineno: int,
+        target_lines: tuple[int, int] = (-1, -1),
+    ):
         self.shell = shell
-        self.target_lines = (0, invocation_lineno) if target_lines == (-1, -1) else target_lines
+        self.target_lines = (
+            (0, invocation_lineno) if target_lines == (-1, -1) else target_lines
+        )
 
         self.invocation_lineno = invocation_lineno
-        session: Iterable[tuple[int, int, tuple[str, str | None]]] = list(shell.history_manager.get_range(output=True))
+        session: Iterable[tuple[int, int, tuple[str, str | None]]] = list(
+            shell.history_manager.get_range(output=True)
+        )
         self.history = IPythonExecutionHistory(session)
 
         """
@@ -62,7 +71,6 @@ class FrontEnd(ABC):
         :param invocation_lineno: The line that the user called the function-to-test on.
         :param target_lines: The lines to read to "try" to read from. In pickle mode, probably reading all lines is good.
         """
-
 
     @property
     def _ast_node_at_invocation_lineno(self) -> ast.Module:
@@ -84,8 +92,8 @@ class FrontEnd(ABC):
             if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
                 return node.value
         raise ValueError(
-            'No call was found in target line number. Make sure that the line is only a call, not an assignment.')
-
+            "No call was found in target line number. Make sure that the line is only a call, not an assignment."
+        )
 
     @property
     def function_def(self):
@@ -127,10 +135,14 @@ class FrontEnd(ABC):
         call_id = self.call_on_lineno.func.id  # type: ignore
         target_func = self._search_history_for_func_def_with_id(call_id)
         if target_func is None:
-            raise ValueError('Function definition not found.')
+            raise ValueError("Function definition not found.")
 
         # TODO: support varargs & kwargs
-        for arg in target_func.args.posonlyargs + target_func.args.args + target_func.args.kwonlyargs:
+        for arg in (
+            target_func.args.posonlyargs
+            + target_func.args.args
+            + target_func.args.kwonlyargs
+        ):
             result.append(arg.arg)
 
         return result
