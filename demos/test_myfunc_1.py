@@ -1,5 +1,6 @@
 import dill
 import pytest
+import nameclash
 
 @pytest.fixture
 def generate_foo(generate_x, generate_y):
