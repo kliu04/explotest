@@ -236,3 +236,17 @@ class TestObjectDetection:
 
         v = Vanilla(evil_generator())
         assert not is_reconstructible(v)
+
+    def test_cycle_detection(self):
+        class Node:
+            def __init__(self, next):
+                self.next = next
+
+        n1 = Node(None)
+        n2 = Node(None)
+
+        # couple n1 to n2, n2 to n1
+        n1.next = n2
+        n2.next = n1
+
+        assert is_reconstructible(n1) and is_reconstructible(n2)
