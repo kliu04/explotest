@@ -155,7 +155,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         _clone = ast.fix_missing_locations(_clone)
         ptf_body.append(_clone)
         for attribute_name, attribute_value in attributes:
-            if False:
+            if is_primitive(attribute_value):
                 _setattr = ast.Expr(
                     value=ast.Call(
                         func=ast.Name(id="setattr", ctx=ast.Load()),
