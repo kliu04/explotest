@@ -1,5 +1,6 @@
 import ast
 import inspect
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar, cast
@@ -35,42 +36,69 @@ class ArgumentReconstructionReconstructor(Reconstructor):
     @staticmethod
     def is_reconstructible(obj: Any) -> bool:
         """True iff object is an instance of a user-defined class."""
-        bad = any(
-            [
-                inspect.ismodule(obj),
-                inspect.isclass(obj),
-                inspect.ismethod(obj),
-                inspect.isfunction(obj),
-                inspect.isgenerator(obj),
-                inspect.isgeneratorfunction(obj),
-                inspect.iscoroutine(obj),
-                inspect.iscoroutinefunction(obj),
-                inspect.isawaitable(obj),
-                inspect.isasyncgen(obj),
-                inspect.istraceback(obj),
-                inspect.isframe(obj),
-                inspect.isbuiltin(obj),
-                inspect.ismethodwrapper(obj),
-                inspect.isgetsetdescriptor(obj),
-                inspect.ismemberdescriptor(obj),
-            ]
-        )
-        if bad:
-            return False
-        else:
-            return True
-            # TODO: refactor this shit to BFS
-            data_only = {
-                n: v
+
+        def is_bad(o: Any) -> bool:
+            return any(
+                [
+                    inspect.ismodule(o),
+                    inspect.isclass(o),
+                    inspect.ismethod(o),
+                    inspect.isfunction(o),
+                    inspect.isgenerator(o),
+                    inspect.isgeneratorfunction(o),
+                    inspect.iscoroutine(o),
+                    inspect.iscoroutinefunction(o),
+                    inspect.isawaitable(o),
+                    inspect.isasyncgen(o),
+                    inspect.istraceback(o),
+                    inspect.isframe(o),
+                    inspect.isbuiltin(o),
+                    inspect.ismethodwrapper(o),
+                    inspect.isgetsetdescriptor(o),
+                    inspect.ismemberdescriptor(o),
+                ]
+            )
+
+        def get_next_attrs(o: Any) -> set[Any]:
+            """
+            Returns all the data-only attributes of the current node.
+            """
+            return {
+                v
                 for n, v in inspect.getmembers(obj)
                 if not inspect.isroutine(v) and not n.startswith("__")
             }
-            return all(
-                [
-                    ArgumentReconstructionReconstructor.is_reconstructible(o)
-                    for o in data_only.values()
-                ]
-            )
+
+        if is_bad(obj):
+            return False
+
+        # TODO: refactor this shit to BFS
+        visited: set[Any] = set()
+
+        q: deque[Any] = deque()
+        q.append(obj)
+
+        while len(q) != 0:
+            current_obj = q.popleft()
+            visited.add(current_obj)
+            # no need to explore current node as we have already explored it with is_bad
+            for next_attr in get_next_attrs(current_obj):
+                if next_attr not in visited:
+                    visited.add(next_attr)
+                    if is_bad(next_attr):
+                        return False
+                    q.append(next_attr)
+        return True
+        #
+        # # bfs
+        # queue = f
+        #
+        # return all(
+        #     [
+        #         ArgumentReconstructionReconstructor.is_reconstructible(o)
+        #         for o in next.values()
+        #     ]
+        # )
 
     def _reconstruct_collection(self, parameter, collection) -> PyTestFixture:
         # primitive values in collections will remain as is
