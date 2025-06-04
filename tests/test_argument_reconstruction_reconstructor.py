@@ -3,6 +3,7 @@ import ast
 import re
 from abc import abstractmethod
 
+import pandas as pd
 import pytest
 from pytest import fixture
 
@@ -56,11 +57,11 @@ def test_reconstruct_object_instance_recursive_1(setup):
 
     assert len(ptf.depends) == 1
     dependency = ptf.depends[0]
-    assert re.search("bar_.*", ptf.depends[0].parameter )
+    assert re.search("bar_.*", ptf.depends[0].parameter)
     assert len(dependency.body) == 1
     re.search(
-       "clone_bar_.* = .*\.Bar\.__new__(.*\.Bar)",
-        ast.unparse(dependency.body[0]))
+        "clone_bar_.* = .*\.Bar\.__new__(.*\.Bar)", ast.unparse(dependency.body[0])
+    )
     assert re.search("return clone_bar_.*", ast.unparse(dependency.ret))
 
     assert ptf.parameter == "f"
@@ -68,7 +69,9 @@ def test_reconstruct_object_instance_recursive_1(setup):
         ast.unparse(ptf.body[0])
         == "clone_f = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
     )
-    assert re.match("setattr\(clone_f, 'bar', generate_bar_.*\)", ast.unparse(ptf.body[1]))
+    assert re.match(
+        "setattr\(clone_f, 'bar', generate_bar_.*\)", ast.unparse(ptf.body[1])
+    )
 
 
 def test_reconstruct_object_instance_recursive_2(setup):
@@ -92,12 +95,11 @@ def test_reconstruct_object_instance_recursive_2(setup):
     dependency_bar = ptf.depends[0]
     assert len(dependency_bar.body) == 2
     assert re.search(
-        "clone_bar_.* = .*\.Bar\.__new__(.*\.Bar)",
-        ast.unparse(dependency_bar.body[0])
+        "clone_bar_.* = .*\.Bar\.__new__(.*\.Bar)", ast.unparse(dependency_bar.body[0])
     )
     assert re.search(
         "setattr\(clone_bar_.*, 'baz', generate_baz_.*\)",
-        ast.unparse(dependency_bar.body[1])
+        ast.unparse(dependency_bar.body[1]),
     )
     assert re.search("return clone_bar_.*", ast.unparse(dependency_bar.ret))
 
@@ -106,8 +108,7 @@ def test_reconstruct_object_instance_recursive_2(setup):
     dependency_baz = dependency_bar.depends[0]
     assert len(dependency_baz.body) == 1
     assert re.search(
-        "clone_baz_.* = .*\.Baz\.__new__(.*\.Baz)",
-        ast.unparse(dependency_baz.body[0])
+        "clone_baz_.* = .*\.Baz\.__new__(.*\.Baz)", ast.unparse(dependency_baz.body[0])
     )
     assert re.search("return clone_baz_.*", ast.unparse(dependency_baz.ret))
 
@@ -116,7 +117,9 @@ def test_reconstruct_object_instance_recursive_2(setup):
         ast.unparse(ptf.body[0])
         == "clone_f = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
     )
-    assert re.search("setattr\(clone_f, 'bar', generate_bar_.*\)", ast.unparse(ptf.body[1]))
+    assert re.search(
+        "setattr\(clone_f, 'bar', generate_bar_.*\)", ast.unparse(ptf.body[1])
+    )
     print(ast.unparse(ptf.body[0]))
     print(ast.unparse(ptf.body[1]))
 
@@ -250,3 +253,7 @@ class TestObjectDetection:
         n2.next = n1
 
         assert is_reconstructible(n1) and is_reconstructible(n2)
+
+    def test_pd_dataframe(self):
+        df = pd.DataFrame({"x": [1, 2, 3, 4]})
+        assert is_reconstructible(df)

@@ -25,7 +25,7 @@ class Reconstructor(abc.ABC):
             fixtures.update(nodes)
 
         return list(fixtures)
-
+ 
     @staticmethod
     def fixture_bfs(ptf: PyTestFixture) -> dict[PyTestFixture, None]:
         # bfs on ptf and return all explored edges including itself.
