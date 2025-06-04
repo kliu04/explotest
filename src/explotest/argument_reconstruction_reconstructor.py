@@ -38,54 +38,61 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         """True iff object is an instance of a user-defined class."""
 
         def is_bad(o: Any) -> bool:
-            return any(
-                [
-                    inspect.ismodule(o),
-                    inspect.isclass(o),
-                    inspect.ismethod(o),
-                    inspect.isfunction(o),
-                    inspect.isgenerator(o),
-                    inspect.isgeneratorfunction(o),
-                    inspect.iscoroutine(o),
-                    inspect.iscoroutinefunction(o),
-                    inspect.isawaitable(o),
-                    inspect.isasyncgen(o),
-                    inspect.istraceback(o),
-                    inspect.isframe(o),
-                    inspect.isbuiltin(o),
-                    inspect.ismethodwrapper(o),
-                    inspect.isgetsetdescriptor(o),
-                    inspect.ismemberdescriptor(o),
-                ]
-            )
+            results = {
+                "ismodule": inspect.ismodule(o),
+                "isclass": inspect.isclass(o),
+                "ismethod": inspect.ismethod(o),
+                "isfunction": inspect.isfunction(o),
+                "isgenerator": inspect.isgenerator(o),
+                "isgeneratorfunction": inspect.isgeneratorfunction(o),
+                "iscoroutine": inspect.iscoroutine(o),
+                "iscoroutinefunction": inspect.iscoroutinefunction(o),
+                "isawaitable": inspect.isawaitable(o),
+                "isasyncgen": inspect.isasyncgen(o),
+                "istraceback": inspect.istraceback(o),
+                "isframe": inspect.isframe(o),
+                "isbuiltin": inspect.isbuiltin(o),
+                "ismethodwrapper": inspect.ismethodwrapper(o),
+                "isgetsetdescriptor": inspect.isgetsetdescriptor(o),
+                "ismemberdescriptor": inspect.ismemberdescriptor(o),
+            }
+            return any(results.values())
 
-        def get_next_attrs(o: Any) -> set[Any]:
+        def get_next_attrs(o: Any) -> list[Any]:
             """
             Returns all the data-only attributes of the current node.
             """
-            return {
+            return [
                 v
-                for n, v in inspect.getmembers(obj)
+                for n, v in inspect.getmembers(o)
                 if not inspect.isroutine(v) and not n.startswith("__")
-            }
+            ]
+
+        def in_that_uses_is(o: Any, lst: list[Any]):
+            """
+            We want to check reference equality for fields, not actual equality as they might have custom implementations
+            of `__eq__`.
+            """
+            return any([o is i for i in lst])
 
         if is_bad(obj):
             return False
 
         # TODO: refactor this shit to BFS
-        visited: set[Any] = set()
+        visited: list[Any] = []
 
         q: deque[Any] = deque()
         q.append(obj)
 
         while len(q) != 0:
             current_obj = q.popleft()
-            visited.add(current_obj)
+            visited.append(current_obj)
             # no need to explore current node as we have already explored it with is_bad
             for next_attr in get_next_attrs(current_obj):
-                if next_attr not in visited:
-                    visited.add(next_attr)
+                if not in_that_uses_is(next, visited):
+                    visited.append(next_attr)
                     if is_bad(next_attr):
+                        is_bad(next_attr)
                         return False
                     q.append(next_attr)
         return True
