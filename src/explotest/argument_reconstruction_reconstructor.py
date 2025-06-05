@@ -92,7 +92,9 @@ class ArgumentReconstructionReconstructor(Reconstructor):
                 # fixes infinite cycling due to int pooling w/ check to is_primitive
                 # https://stackoverflow.com/questions/6101379/what-happens-behind-the-scenes-when-python-adds-small-ints
                 # primitives are trivally reconstructible
-                if not in_that_uses_is(next, visited) and not is_primitive(next_attr):
+                if not in_that_uses_is(next_attr, visited) and not is_primitive(
+                    next_attr
+                ):
                     visited.append(next_attr)
                     if is_bad(next_attr):
                         is_bad(next_attr)
