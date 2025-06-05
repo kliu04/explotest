@@ -257,3 +257,7 @@ class TestObjectDetection:
     def test_pd_dataframe(self):
         df = pd.DataFrame({"x": [1, 2, 3, 4]})
         assert is_reconstructible(df)
+
+    def test_int(self):
+        i = 1
+        assert is_reconstructible(i)

@@ -89,7 +89,8 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             visited.append(current_obj)
             # no need to explore current node as we have already explored it with is_bad
             for next_attr in get_next_attrs(current_obj):
-                if not in_that_uses_is(next, visited):
+                # fixes infinite cycling due to int pooling
+                if not in_that_uses_is(next, visited) and not is_primitive(next_attr):
                     visited.append(next_attr)
                     if is_bad(next_attr):
                         is_bad(next_attr)
