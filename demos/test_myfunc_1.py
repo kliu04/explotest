@@ -2,56 +2,30 @@ import dill
 import pytest
 import nameclash
 
+
 @pytest.fixture
-def generate_foo(generate_x, generate_y):
+def generate_foo():
     clone_foo = nameclash.Foo.__new__(nameclash.Foo)
-    setattr(clone_foo, 'x', generate_x)
-    setattr(clone_foo, 'y', generate_y)
+    setattr(clone_foo, "x", 1)
+    setattr(clone_foo, "y", 2)
     return clone_foo
 
-@pytest.fixture
-def generate_x():
-    x = 1
-    return x
 
 @pytest.fixture
-def generate_y():
-    y = 2
-    return y
-
-@pytest.fixture
-def generate_bar(generate_x, generate_y):
+def generate_bar():
     clone_bar = nameclash.Bar.__new__(nameclash.Bar)
-    setattr(clone_bar, 'x', generate_x)
-    setattr(clone_bar, 'y', generate_y)
+    setattr(clone_bar, "x", 3)
+    setattr(clone_bar, "y", 4)
     return clone_bar
 
-@pytest.fixture
-def generate_x():
-    x = 3
-    return x
 
 @pytest.fixture
-def generate_y():
-    y = 4
-    return y
-
-@pytest.fixture
-def generate_bar2(generate_x, generate_y):
+def generate_bar2():
     clone_bar2 = nameclash.Bar.__new__(nameclash.Bar)
-    setattr(clone_bar2, 'x', generate_x)
-    setattr(clone_bar2, 'y', generate_y)
+    setattr(clone_bar2, "x", 3)
+    setattr(clone_bar2, "y", 4)
     return clone_bar2
 
-@pytest.fixture
-def generate_x():
-    x = 3
-    return x
-
-@pytest.fixture
-def generate_y():
-    y = 4
-    return y
 
 def test_myfunc(generate_foo, generate_bar, generate_bar2):
     foo = generate_foo
