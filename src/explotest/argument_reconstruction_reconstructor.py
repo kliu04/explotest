@@ -89,7 +89,9 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             visited.append(current_obj)
             # no need to explore current node as we have already explored it with is_bad
             for next_attr in get_next_attrs(current_obj):
-                # fixes infinite cycling due to int pooling
+                # fixes infinite cycling due to int pooling w/ check to is_primitive
+                # https://stackoverflow.com/questions/6101379/what-happens-behind-the-scenes-when-python-adds-small-ints
+                # primitives are trivally reconstructible
                 if not in_that_uses_is(next, visited) and not is_primitive(next_attr):
                     visited.append(next_attr)
                     if is_bad(next_attr):
@@ -97,16 +99,6 @@ class ArgumentReconstructionReconstructor(Reconstructor):
                         return False
                     q.append(next_attr)
         return True
-        #
-        # # bfs
-        # queue = f
-        #
-        # return all(
-        #     [
-        #         ArgumentReconstructionReconstructor.is_reconstructible(o)
-        #         for o in next.values()
-        #     ]
-        # )
 
     def _reconstruct_collection(self, parameter, collection) -> PyTestFixture:
         # primitive values in collections will remain as is
