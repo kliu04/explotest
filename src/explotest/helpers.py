@@ -30,8 +30,6 @@ def sanitize_name(name: str) -> str:
 def is_primitive(x: Any) -> bool:
     """True iff x is a primitive type (int, float, str, bool) or a list of primitive types."""
 
-    
-
     def is_collection_of_primitive(cox: collection_t) -> bool:
         if isinstance(cox, dict):
             # need both keys and values to be primitives
