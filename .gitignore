@@ -261,3 +261,5 @@ test_data/pickled/
 demos/pickled/
 
 **/.DS_Store
+
+demos/test**
