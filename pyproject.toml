@@ -16,7 +16,7 @@ authors = [{ name = "Kevin Liu", email = "kliu52@student.ubc.ca" },
 ]
 description = "Automatically generate arguments of Python functions."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 classifiers = ["Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
     "Development Status :: 3 - Alpha",
