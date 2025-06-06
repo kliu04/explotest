@@ -4,7 +4,7 @@ ExploTest is a tool to create unit tests from exploratory test runs.
 
 This project is currently under active development and API breaks can occur at any time.
 
-## Installation (Currently not live!)
+## Installation
 ```bash
 pip install ExploTest
 ```
