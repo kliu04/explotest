@@ -31,7 +31,7 @@ dependencies = ["dill"]
 
 [project.optional-dependencies]
 dev = ["black", "flake8", "pyright"]
-test = ["pytest", "pytest-timeout", "numpy", "pandas", "coverage"]
+test = ["pytest", "pytest-timeout", "pytest-mock", "numpy", "pandas", "coverage", "openai", "flask"]
 repl = ["ipython"]
 
 
