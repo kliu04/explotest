@@ -9,6 +9,24 @@ from collections import defaultdict
 from pathlib import Path
 
 
+# TODO: check if OS independent
+def is_stdlib_file(filepath: str) -> bool:
+    """Determine if a file is part of the standard library;
+    E.g., /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/..."""
+    stdlib_path = sysconfig.get_path("stdlib")
+    abs_filename = os.path.abspath(filepath)
+    abs_stdlib_path = os.path.abspath(stdlib_path)
+    return abs_filename.startswith(abs_stdlib_path)
+
+
+def is_venv_file(filepath: str) -> bool:
+    return ".venv" in filepath
+
+
+def is_frozen_file(filepath: str) -> bool:
+    return filepath.startswith("<frozen ")
+
+
 # cache: path -> { lineno -> [AST nodes] }
 ast_cache = {}
 
@@ -81,24 +99,6 @@ def main():
     sys.settrace(tracer)
     runpy.run_path(target, run_name="__main__")
     sys.settrace(None)
-
-
-# TODO: check if OS independent
-def is_stdlib_file(filepath: str) -> bool:
-    """Determine if a file is part of the standard library;
-    E.g., /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/..."""
-    stdlib_path = sysconfig.get_path("stdlib")
-    abs_filename = os.path.abspath(filepath)
-    abs_stdlib_path = os.path.abspath(stdlib_path)
-    return abs_filename.startswith(abs_stdlib_path)
-
-
-def is_venv_file(filepath: str) -> bool:
-    return ".venv" in filepath
-
-
-def is_frozen_file(filepath: str) -> bool:
-    return filepath.startswith("<frozen ")
 
 
 if __name__ == "__main__":
