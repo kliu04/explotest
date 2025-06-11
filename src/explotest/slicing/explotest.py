@@ -27,11 +27,15 @@ def is_frozen_file(filepath: str) -> bool:
     return filepath.startswith("<frozen ")
 
 
-ast_cache: dict[Path, dict[int, ast.AST]] = {} # open files -> (lineno -> ast) mapping
-_map: dict[str, set[int]] = defaultdict(set)   # variable to lineno dependencies
-_list: list[set[int]] = [set()]                # stack of control flow dependencies
-_control_flow: list[tuple[Path, int]] = []     # stack of (filename, lineno) to signify when an if ends
-_precall: list[list[set[int]]] = []            # stack of list of sets to keep track of dependencies of each parameter/arg
+ast_cache: dict[Path, dict[int, ast.AST]] = {}  # open files -> (lineno -> ast) mapping
+_map: dict[str, set[int]] = defaultdict(set)  # variable to lineno dependencies
+_list: list[set[int]] = [set()]  # stack of control flow dependencies
+_control_flow: list[tuple[Path, int]] = (
+    []
+)  # stack of (filename, lineno) to signify when an if ends
+_precall: list[list[set[int]]] = (
+    []
+)  # stack of list of sets to keep track of dependencies of each parameter/arg
 
 
 class LineAstMapper(ast.NodeVisitor):
@@ -99,11 +103,15 @@ def tracer(frame, event, arg):
     nodes = get_ast_nodes(path, lineno)
 
     if event == "call":
-        for i, parameter in enumerate(frame.f_code.co_varnames):
-            _map[parameter] = _precall[-1][i]
-            # if object, do this in reverse as well?
+        # get names of parameters
+        for i, parameter in enumerate(
+            frame.f_code.co_varnames[: frame.f_code.co_argcount]
+        ):
+            _map[parameter] = _precall[-1][i] | {lineno}
+            # if arg is an object, do this in reverse as well?
     elif event == "return":
         _precall.pop()
+        pass
 
     elif event == "line":
         match nodes[0]:
@@ -171,8 +179,13 @@ def tracer(frame, event, arg):
                     # probably can change this to a map
                     _vars_precall = []
                     for arg in nodes[0].value.args:
-                        for var in get_context_id(arg, ast.Load()):
-                            _vars_precall.append(_map[var] | {lineno})
+
+                        match arg:
+                            # issues with functions as parameters
+                            case ast.Name():
+                                _vars_precall.append(_map[arg.id] | {lineno})
+                            case _:
+                                _vars_precall.append({lineno})
 
                     _precall.append(_vars_precall)
 
