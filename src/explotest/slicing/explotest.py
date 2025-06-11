@@ -124,12 +124,14 @@ def tracer(frame, event, arg):
 
         if isinstance(nodes[0], ast.For):
             for target in get_context_id(nodes[0].target, ast.Store()):
-                _map[target] = set().union({lineno} , *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())))
+                _map[target] = set().union(
+                    {lineno},
+                    *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())),
+                )
             _list.append(
                 set().union(
                     *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())),
                     {nodes[0].lineno},
-                    
                 )
             )
             _control_flow.append((path, nodes[0].end_lineno))
