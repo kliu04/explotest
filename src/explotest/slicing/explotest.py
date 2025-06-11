@@ -27,11 +27,11 @@ def is_frozen_file(filepath: str) -> bool:
     return filepath.startswith("<frozen ")
 
 
-ast_cache: dict[Path, dict[int, ast.AST]] = {}
-_map: dict[str, set[int]] = defaultdict(set)
-_list: list[set[int]] = [set()]
-_control_flow: list[tuple[Path, int]] = []
-_precall: list[list[set[int]]] = []
+ast_cache: dict[Path, dict[int, ast.AST]] = {} # open files -> (lineno -> ast) mapping
+_map: dict[str, set[int]] = defaultdict(set)   # variable to lineno dependencies
+_list: list[set[int]] = [set()]                # stack of control flow dependencies
+_control_flow: list[tuple[Path, int]] = []     # stack of (filename, lineno) to signify when an if ends
+_precall: list[list[set[int]]] = []            # stack of list of sets to keep track of dependencies of each parameter/arg
 
 
 class LineAstMapper(ast.NodeVisitor):
@@ -99,21 +99,9 @@ def tracer(frame, event, arg):
     nodes = get_ast_nodes(path, lineno)
 
     if event == "call":
-        try:
-            # print(arg)
-            # print(ast.dump(nodes[0], indent=4))
-            # print(frame.f_locals, "hey")
-            # print(frame.f_code.co_varnames)
-            # assert len(_precall) == len(frame.f_code.co_varnames)
-            print("hello")
-            for i, parameter in enumerate(frame.f_code.co_varnames):
-                _map[parameter] = _precall[-1][i]
-                # if object, do this in reverse as well
-            # print(_map, "!!!")
-        except Exception as e:
-            # print(e)
-            # print("!!!")
-            pass
+        for i, parameter in enumerate(frame.f_code.co_varnames):
+            _map[parameter] = _precall[-1][i]
+            # if object, do this in reverse as well?
     elif event == "return":
         _precall.pop()
 
@@ -179,11 +167,11 @@ def tracer(frame, event, arg):
                 _control_flow.append((path, nodes[0].end_lineno))
             case ast.Expr():
                 if nodes[0].value and isinstance(nodes[0].value, ast.Call):
+                    # holds each argument -> lineno that it depends on
+                    # probably can change this to a map
                     _vars_precall = []
                     for arg in nodes[0].value.args:
                         for var in get_context_id(arg, ast.Load()):
-                            print(_map, _map[var])
-                            print(type(_map[var]))
                             _vars_precall.append(_map[var] | {lineno})
 
                     _precall.append(_vars_precall)
