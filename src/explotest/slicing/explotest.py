@@ -97,48 +97,57 @@ def tracer(frame, event, arg):
         path = Path(filename)
         path.resolve()
         nodes = get_ast_nodes(path, lineno)
-
-        # match type(nodes[0]):
-        #     case "<class 'list'>":
-        #         pass
-
-        # AugAssign is +=, *=, etc.
-        if isinstance(nodes[0], ast.Assign) or isinstance(nodes[0], ast.AugAssign):
-            for x in get_context_id(nodes[0], ast.Store()):
-                _map[x] = (
-                    {lineno}
-                    | set().union(
-                        *map(_map.__getitem__, get_context_id(nodes[0], ast.Load()))
+        print(type(nodes[0]))
+        match nodes[0]:
+            # AugAssign is +=, *=, etc.
+            case ast.Assign() | ast.AugAssign():
+                for var in get_context_id(nodes[0], ast.Store()):
+                    # union of the current line,
+                    # the sets each of the rvalues of the assignment map to in _map, and
+                    # the line numbers currently stored in any elements of list
+                    _map[var] = set.union(
+                        {lineno},
+                        *map(_map.__getitem__, get_context_id(nodes[0], ast.Load())),
+                        *_list,
                     )
-                    | _list[-1]
+            case ast.If():
+                # before an if-then-else we add code to calculate the set s
+                # of all current dependencies of variables in the loop/branch condition,
+                # and push this onto our current list _list
+                _list.append(
+                    set.union(
+                        *map(
+                            _map.__getitem__, get_context_id(nodes[0].test, ast.Load())
+                        )
+                    )
                 )
+                _control_flow.append((path, nodes[0].end_lineno))
+            case ast.For():
+                # In for example, "for i in range(n)", i is the target
+                # i is being assigned, so follow the assignment rules
+                for target in get_context_id(nodes[0].target, ast.Store()):
+                    _map[target] = set.union(
+                        {lineno},
+                        # i depends on n in the above
+                        *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())),
+                        *_list
+                    )
 
-        # somehow need to pop
-        if isinstance(nodes[0], ast.If):
-            _list.append(
-                set().union(
-                    *map(_map.__getitem__, get_context_id(nodes[0].test, ast.Load()))
+                # This does not follow 410 exactly, because we add and pop outside the loop,
+                # Add code to calculate the set of all current dependencies of variables in the loop condition,
+                # and push this onto our current list _list
+                # The branch condition dependencies are replaced at every loop iteration
+                _list.append(
+                    set.union(
+                        {lineno},
+                        *map(
+                            _map.__getitem__, get_context_id(nodes[0].iter, ast.Load())
+                        ),
+                    )
                 )
-            )
-            _control_flow.append((path, nodes[0].end_lineno))
+                _control_flow.append((path, nodes[0].end_lineno))
 
-        if isinstance(nodes[0], ast.For):
-            for target in get_context_id(nodes[0].target, ast.Store()):
-                _map[target] = set().union(
-                    {lineno},
-                    *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())),
-                )
-            _list.append(
-                set().union(
-                    *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())),
-                    {nodes[0].lineno},
-                )
-            )
-            _control_flow.append((path, nodes[0].end_lineno))
-
-        if isinstance(nodes[0], ast.While):
-            pass
-
+        # pop control flow after we exit
         while (
             len(_control_flow) > 0
             and nodes[0].lineno >= _control_flow[-1][1]
