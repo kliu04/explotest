@@ -27,11 +27,11 @@ def is_frozen_file(filepath: str) -> bool:
     return filepath.startswith("<frozen ")
 
 
-# cache: path -> { lineno -> [AST nodes] }
-ast_cache = {}
+ast_cache: dict[Path, dict[int, ast.AST]] = {}
 _map: dict[str, set[int]] = defaultdict(set)
 _list: list[set[int]] = [set()]
 _control_flow: list[tuple[Path, int]] = []
+_precall: list[list[set[int]]] = []
 
 
 class LineAstMapper(ast.NodeVisitor):
@@ -85,19 +85,39 @@ def tracer(frame, event, arg):
     :param arg:
     :return: must return this object for tracing to work
     """
-    if event == "line":
-        lineno = frame.f_lineno
-        filename = frame.f_globals.get("__file__", "<unknown>")
-        if (
-            is_frozen_file(filename)
-            or is_stdlib_file(filename)
-            or is_venv_file(filename)
-        ):
-            return tracer
-        path = Path(filename)
-        path.resolve()
-        nodes = get_ast_nodes(path, lineno)
-        print(type(nodes[0]))
+    global _precall
+    lineno = frame.f_lineno
+    filename = frame.f_globals.get("__file__", "<unknown>")
+
+    # ignore files we don't have access to
+    if is_frozen_file(filename) or is_stdlib_file(filename) or is_venv_file(filename):
+        return tracer
+
+    path = Path(filename)
+    path.resolve()
+
+    nodes = get_ast_nodes(path, lineno)
+
+    if event == "call":
+        try:
+            # print(arg)
+            # print(ast.dump(nodes[0], indent=4))
+            # print(frame.f_locals, "hey")
+            # print(frame.f_code.co_varnames)
+            # assert len(_precall) == len(frame.f_code.co_varnames)
+            print("hello")
+            for i, parameter in enumerate(frame.f_code.co_varnames):
+                _map[parameter] = _precall[-1][i]
+                # if object, do this in reverse as well
+            # print(_map, "!!!")
+        except Exception as e:
+            # print(e)
+            # print("!!!")
+            pass
+    elif event == "return":
+        _precall.pop()
+
+    elif event == "line":
         match nodes[0]:
             # AugAssign is +=, *=, etc.
             case ast.Assign() | ast.AugAssign():
@@ -114,14 +134,13 @@ def tracer(frame, event, arg):
                 # before an if-then-else we add code to calculate the set s
                 # of all current dependencies of variables in the loop/branch condition,
                 # and push this onto our current list _list
-                _list.append(
-                    set.union(
-                        *map(
-                            _map.__getitem__, get_context_id(nodes[0].test, ast.Load())
-                        )
-                    )
+
+                union = set.union(
+                    *map(_map.__getitem__, get_context_id(nodes[0].test, ast.Load()))
                 )
+                _list.append(union)
                 _control_flow.append((path, nodes[0].end_lineno))
+
             case ast.For():
                 # In for example, "for i in range(n)", i is the target
                 # i is being assigned, so follow the assignment rules
@@ -129,8 +148,10 @@ def tracer(frame, event, arg):
                     _map[target] = set.union(
                         {lineno},
                         # i depends on n in the above
-                        *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())),
-                        *_list
+                        *map(
+                            _map.__getitem__, get_context_id(nodes[0].iter, ast.Load())
+                        ),
+                        *_list,
                     )
 
                 # This does not follow 410 exactly, because we add and pop outside the loop,
@@ -146,6 +167,26 @@ def tracer(frame, event, arg):
                     )
                 )
                 _control_flow.append((path, nodes[0].end_lineno))
+            case ast.While():
+                _list.append(
+                    set.union(
+                        {lineno},
+                        *map(
+                            _map.__getitem__, get_context_id(nodes[0].test, ast.Load())
+                        ),
+                    )
+                )
+                _control_flow.append((path, nodes[0].end_lineno))
+            case ast.Expr():
+                if nodes[0].value and isinstance(nodes[0].value, ast.Call):
+                    _vars_precall = []
+                    for arg in nodes[0].value.args:
+                        for var in get_context_id(arg, ast.Load()):
+                            print(_map, _map[var])
+                            print(type(_map[var]))
+                            _vars_precall.append(_map[var] | {lineno})
+
+                    _precall.append(_vars_precall)
 
         # pop control flow after we exit
         while (
