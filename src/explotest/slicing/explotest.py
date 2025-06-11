@@ -29,6 +29,9 @@ def is_frozen_file(filepath: str) -> bool:
 
 # cache: path -> { lineno -> [AST nodes] }
 ast_cache = {}
+_map: dict[str, set[int]] = defaultdict(set)
+_list: list[set[int]] = [set()]
+_control_flow: list[tuple[Path, int]] = []
 
 
 class LineAstMapper(ast.NodeVisitor):
@@ -59,6 +62,21 @@ def get_ast_nodes(path: Path, lineno: int) -> list[ast.AST]:
     return ast_cache[path].get(lineno, [])
 
 
+def get_context_id(node: ast.AST, context: ast.expr_context) -> list[str]:
+    """searches for load or store contexts"""
+    res: list[str] = []
+
+    class ContextFinder(ast.NodeVisitor):
+        """Walks the AST to map each lineno to corresponding AST nodes"""
+
+        def visit_Name(self, node: ast.Name):
+            if isinstance(node.ctx, type(context)):
+                res.append(node.id)
+
+    ContextFinder().visit(node)
+    return res
+
+
 def tracer(frame, event, arg):
     """
     Hooks onto Python default tracer to add instrumentation for ExploTest.
@@ -79,9 +97,57 @@ def tracer(frame, event, arg):
         path = Path(filename)
         path.resolve()
         nodes = get_ast_nodes(path, lineno)
-        print(f"[{filename}:{lineno}] -> AST Nodes:")
-        for n in nodes:
-            print(ast.dump(n, indent=4))
+
+        # match type(nodes[0]):
+        #     case "<class 'list'>":
+        #         pass
+
+        # AugAssign is +=, *=, etc.
+        if isinstance(nodes[0], ast.Assign) or isinstance(nodes[0], ast.AugAssign):
+            for x in get_context_id(nodes[0], ast.Store()):
+                _map[x] = (
+                    {lineno}
+                    | set().union(
+                        *map(_map.__getitem__, get_context_id(nodes[0], ast.Load()))
+                    )
+                    | _list[-1]
+                )
+
+        # somehow need to pop
+        if isinstance(nodes[0], ast.If):
+            _list.append(
+                set().union(
+                    *map(_map.__getitem__, get_context_id(nodes[0].test, ast.Load()))
+                )
+            )
+            _control_flow.append((path, nodes[0].end_lineno))
+
+        if isinstance(nodes[0], ast.For):
+            for target in get_context_id(nodes[0].target, ast.Store()):
+                _map[target] = set().union({lineno} , *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())))
+            _list.append(
+                set().union(
+                    *map(_map.__getitem__, get_context_id(nodes[0].iter, ast.Load())),
+                    {nodes[0].lineno},
+                    
+                )
+            )
+            _control_flow.append((path, nodes[0].end_lineno))
+
+        if isinstance(nodes[0], ast.While):
+            pass
+
+        while (
+            len(_control_flow) > 0
+            and nodes[0].lineno >= _control_flow[-1][1]
+            and path == _control_flow[-1][0]
+        ):
+            _control_flow.pop()
+            _list.pop()
+
+        print(f"[{filename}:{lineno}] -> AST Nodes: {_map} {_list} {_control_flow}")
+        # for n in nodes:
+        #     print(ast.dump(n, indent=4))
 
     return tracer
 
