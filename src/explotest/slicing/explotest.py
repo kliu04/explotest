@@ -1,6 +1,10 @@
-### Used only for slicing!
-### Sets up tracer that will track every executed line
+"""
+Used only for slicing!
+Sets up tracer that will track every executed line
+"""
+
 import ast
+import inspect
 import os
 import runpy
 import sys
@@ -27,15 +31,17 @@ def is_frozen_file(filepath: str) -> bool:
     return filepath.startswith("<frozen ")
 
 
-ast_cache: dict[Path, dict[int, ast.AST]] = {}  # open files -> (lineno -> ast) mapping
+ast_cache: dict[Path, dict[int, list[ast.AST]]] = (
+    {}
+)  # open files -> (lineno -> ast) mapping
 _map: dict[str, set[int]] = defaultdict(set)  # variable to lineno dependencies
 _list: list[set[int]] = [set()]  # stack of control flow dependencies
 _control_flow: list[tuple[Path, int]] = (
     []
 )  # stack of (filename, lineno) to signify when an if ends
-_precall: list[list[set[int]]] = (
-    []
-)  # stack of list of sets to keep track of dependencies of each parameter/arg
+_precall_args: list[list[set[int]]] = []
+# stack of list of sets to keep track of dependencies of each parameter/arg
+_precall_kwargs: list[dict[str, set[int]]] = []
 
 
 class LineAstMapper(ast.NodeVisitor):
@@ -76,20 +82,20 @@ def get_context_id(node: ast.AST, context: ast.expr_context) -> list[str]:
         def visit_Name(self, node: ast.Name):
             if isinstance(node.ctx, type(context)):
                 res.append(node.id)
+            self.generic_visit(node)
 
     ContextFinder().visit(node)
     return res
 
 
-def tracer(frame, event, arg):
+def tracer(frame, event, __arg):
     """
     Hooks onto Python default tracer to add instrumentation for ExploTest.
     :param frame:
     :param event:
-    :param arg:
+    :param __arg:
     :return: must return this object for tracing to work
     """
-    global _precall
     lineno = frame.f_lineno
     filename = frame.f_globals.get("__file__", "<unknown>")
 
@@ -103,15 +109,49 @@ def tracer(frame, event, arg):
     nodes = get_ast_nodes(path, lineno)
 
     if event == "call":
-        # get names of parameters
-        for i, parameter in enumerate(
-            frame.f_code.co_varnames[: frame.f_code.co_argcount]
-        ):
-            _map[parameter] = _precall[-1][i] | {lineno}
-            # if arg is an object, do this in reverse as well?
-    elif event == "return":
-        _precall.pop()
-        pass
+
+        # python interpreter interprets loading a module as calling a function wrapper of the module
+        if frame.f_lineno == 0:
+            return tracer
+
+        last_precall = _precall_args.pop()
+        last_precall_kw = _precall_kwargs.pop()
+
+        func = frame.f_globals[frame.f_code.co_name]
+        signature = inspect.signature(func)
+
+        num_positional_args = len(last_precall)
+        pos_index = 0
+
+        # TODO: arrays, objects, varkw, varargs, aliasing
+        print(signature.parameters, last_precall)
+
+        for parameter in signature.parameters.values():
+            name = parameter.name
+            match parameter.kind:
+                case inspect.Parameter.POSITIONAL_ONLY:
+                    if pos_index < num_positional_args:
+                        _map[name] = last_precall[pos_index] | {lineno}
+                        pos_index += 1
+                    else:
+                        raise AssertionError("This should never happen.")
+                case inspect.Parameter.POSITIONAL_OR_KEYWORD:
+                    if name in last_precall_kw:
+                        _map[name] = last_precall_kw[name] | {lineno}
+                    elif pos_index < num_positional_args:
+                        _map[name] = last_precall[pos_index] | {lineno}
+                        pos_index += 1
+                    else:
+                        _map[name] = {lineno}  # default argument
+                case inspect.Parameter.VAR_POSITIONAL:
+                    pass  # not yet implemented
+                case inspect.Parameter.KEYWORD_ONLY:
+                    if name in last_precall_kw:
+                        _map[name] = last_precall_kw[name] | {lineno}
+                    else:
+                        _map[name] = {lineno}  # default argument
+                case inspect.Parameter.VAR_KEYWORD:
+                    pass  # not yet implemented
 
     elif event == "line":
         match nodes[0]:
@@ -121,7 +161,7 @@ def tracer(frame, event, arg):
                     # union of the current line,
                     # the sets each of the rvalues of the assignment map to in _map, and
                     # the line numbers currently stored in any elements of list
-                    _map[var] = set.union(
+                    _map[var] = set().union(
                         {lineno},
                         *map(_map.__getitem__, get_context_id(nodes[0], ast.Load())),
                         *_list,
@@ -131,7 +171,7 @@ def tracer(frame, event, arg):
                 # of all current dependencies of variables in the loop/branch condition,
                 # and push this onto our current list _list
 
-                union = set.union(
+                union = set().union(
                     *map(_map.__getitem__, get_context_id(nodes[0].test, ast.Load()))
                 )
                 _list.append(union)
@@ -141,7 +181,7 @@ def tracer(frame, event, arg):
                 # In for example, "for i in range(n)", i is the target
                 # i is being assigned, so follow the assignment rules
                 for target in get_context_id(nodes[0].target, ast.Store()):
-                    _map[target] = set.union(
+                    _map[target] = set().union(
                         {lineno},
                         # i depends on n in the above
                         *map(
@@ -155,7 +195,7 @@ def tracer(frame, event, arg):
                 # and push this onto our current list _list
                 # The branch condition dependencies are replaced at every loop iteration
                 _list.append(
-                    set.union(
+                    set().union(
                         {lineno},
                         *map(
                             _map.__getitem__, get_context_id(nodes[0].iter, ast.Load())
@@ -165,7 +205,7 @@ def tracer(frame, event, arg):
                 _control_flow.append((path, nodes[0].end_lineno))
             case ast.While():
                 _list.append(
-                    set.union(
+                    set().union(
                         {lineno},
                         *map(
                             _map.__getitem__, get_context_id(nodes[0].test, ast.Load())
@@ -173,21 +213,23 @@ def tracer(frame, event, arg):
                     )
                 )
                 _control_flow.append((path, nodes[0].end_lineno))
-            case ast.Expr():
-                if nodes[0].value and isinstance(nodes[0].value, ast.Call):
-                    # holds each argument -> lineno that it depends on
-                    # probably can change this to a map
-                    _vars_precall = []
-                    for arg in nodes[0].value.args:
 
-                        match arg:
-                            # issues with functions as parameters
-                            case ast.Name():
-                                _vars_precall.append(_map[arg.id] | {lineno})
-                            case _:
-                                _vars_precall.append({lineno})
+        for node in nodes:
+            # print(ast.dump(node, indent=4))
+            if isinstance(node, ast.Call):
 
-                    _precall.append(_vars_precall)
+                bindings = [
+                    _map[var]
+                    for arg in node.args
+                    for var in get_context_id(arg, ast.Load())
+                ]
+                _precall_args.append(bindings)
+                kw_bindings = {
+                    arg.arg: _map[var]
+                    for arg in node.keywords
+                    for var in get_context_id(arg, ast.Load())
+                }
+                _precall_kwargs.append(kw_bindings)
 
         # pop control flow after we exit
         while (
@@ -198,9 +240,9 @@ def tracer(frame, event, arg):
             _control_flow.pop()
             _list.pop()
 
-        print(f"[{filename}:{lineno}] -> AST Nodes: {_map} {_list} {_control_flow}")
-        # for n in nodes:
-        #     print(ast.dump(n, indent=4))
+        print(
+            f"[{filename}:{lineno}] -> AST Nodes: {_map} {_list} {_control_flow} {_precall_args}"
+        )
 
     return tracer
 
