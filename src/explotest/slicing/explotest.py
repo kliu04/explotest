@@ -124,7 +124,6 @@ def tracer(frame, event, __arg):
         pos_index = 0
 
         # TODO: arrays, objects, varkw, varargs, aliasing
-        print(signature.parameters, last_precall)
 
         for parameter in signature.parameters.values():
             name = parameter.name
@@ -154,6 +153,8 @@ def tracer(frame, event, __arg):
                     pass  # not yet implemented
 
     elif event == "line":
+        print(ast.dump(nodes[0], indent=4))
+
         match nodes[0]:
             # AugAssign is +=, *=, etc.
             case ast.Assign() | ast.AugAssign():
@@ -203,6 +204,7 @@ def tracer(frame, event, __arg):
                     )
                 )
                 _control_flow.append((path, nodes[0].end_lineno))
+                
             case ast.While():
                 _list.append(
                     set().union(
@@ -243,6 +245,21 @@ def tracer(frame, event, __arg):
         print(
             f"[{filename}:{lineno}] -> AST Nodes: {_map} {_list} {_control_flow} {_precall_args}"
         )
+
+        for k, v in frame.f_locals.items():
+            if k in {
+                "__name__",
+                "__doc__",
+                "__package__",
+                "__loader__",
+                "__spec__",
+                "__file__",
+                "__cached__",
+                "__builtins__",
+            }:
+                continue
+            print(k, v)
+        # print(frame.f_locals)
 
     return tracer
 
