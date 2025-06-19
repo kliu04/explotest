@@ -171,15 +171,20 @@ def tracer(frame: types.FrameType, event, arg):
             case ast.If():
                 _list.append(set().union(*map(_map.__getitem__, load)))
                 _control_flow.append(
-                    ControlFlowTracker(nodes[0].lineno, nodes[0].end_lineno, path, depth)
+                    ControlFlowTracker(
+                        nodes[0].lineno, nodes[0].end_lineno, path, depth
+                    )
                 )
 
             case ast.For() | ast.While():
-                _list.append(set().union(*map(_map.__getitem__, load), {frame.f_lineno}))
-                _control_flow.append(
-                    ControlFlowTracker(nodes[0].lineno, nodes[0].end_lineno, path, depth)
+                _list.append(
+                    set().union(*map(_map.__getitem__, load), {frame.f_lineno})
                 )
-                
+                _control_flow.append(
+                    ControlFlowTracker(
+                        nodes[0].lineno, nodes[0].end_lineno, path, depth
+                    )
+                )
 
         for var in store:
             _map[var] = set().union(
