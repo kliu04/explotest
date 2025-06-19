@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class IfTracker:
+class ControlFlowTracker:
     start_lineno: int
     end_lineno: int
     path: Path
@@ -47,7 +47,7 @@ ast_cache: dict[Path, dict[int, list[ast.AST]]] = (
 )  # open files -> (lineno -> ast) mapping
 _map: dict[str, set[int]] = defaultdict(set)  # variable to lineno dependencies
 _list: list[set[int]] = []  # stack of control flow dependencies
-_control_flow: list[IfTracker] = (
+_control_flow: list[ControlFlowTracker] = (
     []
 )  # stack of (filename, lineno) to signify when an if ends
 _precall_args: list[list[set[int]]] = []
@@ -106,7 +106,7 @@ def tracer(frame: types.FrameType, event, arg):
     #     :param event:
     #     :param __arg:
     #     :return: must return this object for tracing to work
-    #"""
+    """
     filename = frame.f_globals.get("__file__", "<unknown>")
     frame.f_trace_opcodes = True
     bytecode = dis.Bytecode(frame.f_code)
@@ -120,6 +120,7 @@ def tracer(frame: types.FrameType, event, arg):
 
     # can do opcode or line
     if event == "line":
+        print(frame.f_lineno)
         instructions = list(
             filter(lambda instr: instr.line_number == frame.f_lineno, bytecode)
         )
@@ -136,11 +137,15 @@ def tracer(frame: types.FrameType, event, arg):
                 case "STORE_NAME" | "STORE_FAST":
                     store.add(arg)
                 case "LOAD_FAST_LOAD_FAST":
-                    arg = map(str.strip, arg.split(",")) # convert str "(x, y)" to tuple ("x", "y")
+                    arg = map(
+                        str.strip, arg.split(",")
+                    )  # convert str "(x, y)" to tuple ("x", "y")
                     for a in arg:
                         load.add(a)
                 case "STORE_FAST_STORE_FAST":
-                    arg = map(str.strip, arg.split(",")) # convert str "(x, y)" to tuple ("x", "y")
+                    arg = map(
+                        str.strip, arg.split(",")
+                    )  # convert str "(x, y)" to tuple ("x", "y")
                     for a in arg:
                         store.add(a)
 
@@ -150,22 +155,10 @@ def tracer(frame: types.FrameType, event, arg):
             depth += 1
             f = f.f_back
 
-        match nodes[0]:
-            case ast.If():
-                _list.append(*map(_map.__getitem__, load))
-                _control_flow.append(
-                    IfTracker(nodes[0].lineno, nodes[0].end_lineno, path, depth)
-                )
-
-        for var in store:
-            _map[var] = set().union(
-                *map(_map.__getitem__, load), {frame.f_lineno}, *_list
-            )
-
         while len(_control_flow) > 0:
             assert len(_control_flow) == len(_list)
             last_if = _control_flow[-1]
-            if frame.f_lineno > last_if.end_lineno and last_if.stack_level == depth:
+            if frame.f_lineno >= last_if.end_lineno and last_if.stack_level == depth:
                 _control_flow.pop()
                 _list.pop()
             elif last_if.stack_level > depth:
@@ -174,8 +167,27 @@ def tracer(frame: types.FrameType, event, arg):
             else:
                 break
 
+        match nodes[0]:
+            case ast.If():
+                _list.append(set().union(*map(_map.__getitem__, load)))
+                _control_flow.append(
+                    ControlFlowTracker(nodes[0].lineno, nodes[0].end_lineno, path, depth)
+                )
+
+            case ast.For() | ast.While():
+                _list.append(set().union(*map(_map.__getitem__, load), {frame.f_lineno}))
+                _control_flow.append(
+                    ControlFlowTracker(nodes[0].lineno, nodes[0].end_lineno, path, depth)
+                )
+                
+
+        for var in store:
+            _map[var] = set().union(
+                *map(_map.__getitem__, load), {frame.f_lineno}, *_list
+            )
+
         print(
-            f"[{filename}:{frame.f_lineno}] -> AST Nodes: {_map} {_list} {_control_flow}"
+            f"[{filename}:{frame.f_lineno}] -> AST Nodes: {_map} {_list} {_control_flow} {depth}"
         )
     return tracer
 
