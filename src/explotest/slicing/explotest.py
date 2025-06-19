@@ -4,13 +4,24 @@ Sets up tracer that will track every executed line
 """
 
 import ast
-import inspect
+import dis
 import os
 import runpy
 import sys
 import sysconfig
+import types
 from collections import defaultdict
+
+from dataclasses import dataclass
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class IfTracker:
+    start_lineno: int
+    end_lineno: int
+    path: Path
+    stack_level: int
 
 
 # TODO: check if OS independent
@@ -35,8 +46,8 @@ ast_cache: dict[Path, dict[int, list[ast.AST]]] = (
     {}
 )  # open files -> (lineno -> ast) mapping
 _map: dict[str, set[int]] = defaultdict(set)  # variable to lineno dependencies
-_list: list[set[int]] = [set()]  # stack of control flow dependencies
-_control_flow: list[tuple[Path, int]] = (
+_list: list[set[int]] = []  # stack of control flow dependencies
+_control_flow: list[IfTracker] = (
     []
 )  # stack of (filename, lineno) to signify when an if ends
 _precall_args: list[list[set[int]]] = []
@@ -88,179 +99,84 @@ def get_context_id(node: ast.AST, context: ast.expr_context) -> list[str]:
     return res
 
 
-def tracer(frame, event, __arg):
+def tracer(frame: types.FrameType, event, arg):
     """
-    Hooks onto Python default tracer to add instrumentation for ExploTest.
-    :param frame:
-    :param event:
-    :param __arg:
-    :return: must return this object for tracing to work
-    """
-    lineno = frame.f_lineno
+    #     Hooks onto Python default tracer to add instrumentation for ExploTest.
+    #     :param frame:
+    #     :param event:
+    #     :param __arg:
+    #     :return: must return this object for tracing to work
+    #"""
     filename = frame.f_globals.get("__file__", "<unknown>")
+    frame.f_trace_opcodes = True
+    bytecode = dis.Bytecode(frame.f_code)
+    path = Path(filename)
+    path.resolve()
+    nodes = get_ast_nodes(path, frame.f_lineno)
 
     # ignore files we don't have access to
     if is_frozen_file(filename) or is_stdlib_file(filename) or is_venv_file(filename):
         return tracer
 
-    path = Path(filename)
-    path.resolve()
-
-    nodes = get_ast_nodes(path, lineno)
-
-    if event == "call":
-
-        # python interpreter interprets loading a module as calling a function wrapper of the module
-        if frame.f_lineno == 0:
-            return tracer
-
-        last_precall = _precall_args.pop()
-        last_precall_kw = _precall_kwargs.pop()
-
-        func = frame.f_globals[frame.f_code.co_name]
-        signature = inspect.signature(func)
-
-        num_positional_args = len(last_precall)
-        pos_index = 0
-
-        # TODO: arrays, objects, varkw, varargs, aliasing
-
-        for parameter in signature.parameters.values():
-            name = parameter.name
-            match parameter.kind:
-                case inspect.Parameter.POSITIONAL_ONLY:
-                    if pos_index < num_positional_args:
-                        _map[name] = last_precall[pos_index] | {lineno}
-                        pos_index += 1
-                    else:
-                        raise AssertionError("This should never happen.")
-                case inspect.Parameter.POSITIONAL_OR_KEYWORD:
-                    if name in last_precall_kw:
-                        _map[name] = last_precall_kw[name] | {lineno}
-                    elif pos_index < num_positional_args:
-                        _map[name] = last_precall[pos_index] | {lineno}
-                        pos_index += 1
-                    else:
-                        _map[name] = {lineno}  # default argument
-                case inspect.Parameter.VAR_POSITIONAL:
-                    pass  # not yet implemented
-                case inspect.Parameter.KEYWORD_ONLY:
-                    if name in last_precall_kw:
-                        _map[name] = last_precall_kw[name] | {lineno}
-                    else:
-                        _map[name] = {lineno}  # default argument
-                case inspect.Parameter.VAR_KEYWORD:
-                    pass  # not yet implemented
-
-    elif event == "line":
-        print(ast.dump(nodes[0], indent=4))
-
-        match nodes[0]:
-            # AugAssign is +=, *=, etc.
-            case ast.Assign() | ast.AugAssign():
-                for var in get_context_id(nodes[0], ast.Store()):
-                    # union of the current line,
-                    # the sets each of the rvalues of the assignment map to in _map, and
-                    # the line numbers currently stored in any elements of list
-                    _map[var] = set().union(
-                        {lineno},
-                        *map(_map.__getitem__, get_context_id(nodes[0], ast.Load())),
-                        *_list,
-                    )
-            case ast.If():
-                # before an if-then-else we add code to calculate the set s
-                # of all current dependencies of variables in the loop/branch condition,
-                # and push this onto our current list _list
-
-                union = set().union(
-                    *map(_map.__getitem__, get_context_id(nodes[0].test, ast.Load()))
-                )
-                _list.append(union)
-                _control_flow.append((path, nodes[0].end_lineno))
-
-            case ast.For():
-                # In for example, "for i in range(n)", i is the target
-                # i is being assigned, so follow the assignment rules
-                for target in get_context_id(nodes[0].target, ast.Store()):
-                    _map[target] = set().union(
-                        {lineno},
-                        # i depends on n in the above
-                        *map(
-                            _map.__getitem__, get_context_id(nodes[0].iter, ast.Load())
-                        ),
-                        *_list,
-                    )
-
-                # This does not follow 410 exactly, because we add and pop outside the loop,
-                # Add code to calculate the set of all current dependencies of variables in the loop condition,
-                # and push this onto our current list _list
-                # The branch condition dependencies are replaced at every loop iteration
-                _list.append(
-                    set().union(
-                        {lineno},
-                        *map(
-                            _map.__getitem__, get_context_id(nodes[0].iter, ast.Load())
-                        ),
-                    )
-                )
-                _control_flow.append((path, nodes[0].end_lineno))
-                
-            case ast.While():
-                _list.append(
-                    set().union(
-                        {lineno},
-                        *map(
-                            _map.__getitem__, get_context_id(nodes[0].test, ast.Load())
-                        ),
-                    )
-                )
-                _control_flow.append((path, nodes[0].end_lineno))
-
-        for node in nodes:
-            # print(ast.dump(node, indent=4))
-            if isinstance(node, ast.Call):
-
-                bindings = [
-                    _map[var]
-                    for arg in node.args
-                    for var in get_context_id(arg, ast.Load())
-                ]
-                _precall_args.append(bindings)
-                kw_bindings = {
-                    arg.arg: _map[var]
-                    for arg in node.keywords
-                    for var in get_context_id(arg, ast.Load())
-                }
-                _precall_kwargs.append(kw_bindings)
-
-        # pop control flow after we exit
-        while (
-            len(_control_flow) > 0
-            and nodes[0].lineno >= _control_flow[-1][1]
-            and path == _control_flow[-1][0]
-        ):
-            _control_flow.pop()
-            _list.pop()
-
-        print(
-            f"[{filename}:{lineno}] -> AST Nodes: {_map} {_list} {_control_flow} {_precall_args}"
+    # can do opcode or line
+    if event == "line":
+        instructions = list(
+            filter(lambda instr: instr.line_number == frame.f_lineno, bytecode)
         )
 
-        for k, v in frame.f_locals.items():
-            if k in {
-                "__name__",
-                "__doc__",
-                "__package__",
-                "__loader__",
-                "__spec__",
-                "__file__",
-                "__cached__",
-                "__builtins__",
-            }:
-                continue
-            print(k, v)
-        # print(frame.f_locals)
+        load = set()
+        store = set()
 
+        for instr in instructions:
+            arg = instr.argrepr
+
+            match instr.opname:
+                case "LOAD_NAME" | "LOAD_FAST":
+                    load.add(arg)
+                case "STORE_NAME" | "STORE_FAST":
+                    store.add(arg)
+                case "LOAD_FAST_LOAD_FAST":
+                    arg = map(str.strip, arg.split(",")) # convert str "(x, y)" to tuple ("x", "y")
+                    for a in arg:
+                        load.add(a)
+                case "STORE_FAST_STORE_FAST":
+                    arg = map(str.strip, arg.split(",")) # convert str "(x, y)" to tuple ("x", "y")
+                    for a in arg:
+                        store.add(a)
+
+        depth = 0
+        f = frame
+        while f:
+            depth += 1
+            f = f.f_back
+
+        match nodes[0]:
+            case ast.If():
+                _list.append(*map(_map.__getitem__, load))
+                _control_flow.append(
+                    IfTracker(nodes[0].lineno, nodes[0].end_lineno, path, depth)
+                )
+
+        for var in store:
+            _map[var] = set().union(
+                *map(_map.__getitem__, load), {frame.f_lineno}, *_list
+            )
+
+        while len(_control_flow) > 0:
+            assert len(_control_flow) == len(_list)
+            last_if = _control_flow[-1]
+            if frame.f_lineno > last_if.end_lineno and last_if.stack_level == depth:
+                _control_flow.pop()
+                _list.pop()
+            elif last_if.stack_level > depth:
+                _control_flow.pop()
+                _list.pop()
+            else:
+                break
+
+        print(
+            f"[{filename}:{frame.f_lineno}] -> AST Nodes: {_map} {_list} {_control_flow}"
+        )
     return tracer
 
 
