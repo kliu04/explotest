@@ -5,6 +5,7 @@ Sets up tracer that will track every executed line
 
 import ast
 import dis
+import inspect
 import os
 import runpy
 import sys
@@ -112,18 +113,57 @@ def tracer(frame: types.FrameType, event, arg):
     bytecode = dis.Bytecode(frame.f_code)
     path = Path(filename)
     path.resolve()
-    nodes = get_ast_nodes(path, frame.f_lineno)
+    lineno = frame.f_lineno
+    nodes = get_ast_nodes(path, lineno)
 
     # ignore files we don't have access to
     if is_frozen_file(filename) or is_stdlib_file(filename) or is_venv_file(filename):
         return tracer
 
-    # can do opcode or line
-    if event == "line":
-        print(frame.f_lineno)
-        instructions = list(
-            filter(lambda instr: instr.line_number == frame.f_lineno, bytecode)
-        )
+    if event == "call":
+
+        # python interpreter interprets loading a module as calling a function wrapper of the module
+        if lineno == 0:
+            return tracer
+
+        last_precall = _precall_args.pop()
+        last_precall_kw = _precall_kwargs.pop()
+
+        func = frame.f_globals[frame.f_code.co_name]
+        signature = inspect.signature(func)
+
+        num_positional_args = len(last_precall)
+        pos_index = 0
+
+        for parameter in signature.parameters.values():
+            name = parameter.name
+            match parameter.kind:
+                case inspect.Parameter.POSITIONAL_ONLY:
+                    if pos_index < num_positional_args:
+                        _map[name] = last_precall[pos_index] | {lineno}
+                        pos_index += 1
+                    else:
+                        raise AssertionError("This should never happen.")
+                case inspect.Parameter.POSITIONAL_OR_KEYWORD:
+                    if name in last_precall_kw:
+                        _map[name] = last_precall_kw[name] | {lineno}
+                    elif pos_index < num_positional_args:
+                        _map[name] = last_precall[pos_index] | {lineno}
+                        pos_index += 1
+                    else:
+                        _map[name] = {lineno}  # default argument
+                case inspect.Parameter.VAR_POSITIONAL:
+                    pass  # not yet implemented
+                case inspect.Parameter.KEYWORD_ONLY:
+                    if name in last_precall_kw:
+                        _map[name] = last_precall_kw[name] | {lineno}
+                    else:
+                        _map[name] = {lineno}  # default argument
+                case inspect.Parameter.VAR_KEYWORD:
+                    pass  # not yet implemented
+
+    elif event == "line":
+        instructions = list(filter(lambda instr: instr.line_number == lineno, bytecode))
 
         load = set()
         store = set()
@@ -158,7 +198,11 @@ def tracer(frame: types.FrameType, event, arg):
         while len(_control_flow) > 0:
             assert len(_control_flow) == len(_list)
             last_if = _control_flow[-1]
-            if frame.f_lineno >= last_if.end_lineno and last_if.stack_level == depth:
+            if (
+                lineno >= last_if.end_lineno
+                and last_if.stack_level == depth
+                and last_if.path == path
+            ):
                 _control_flow.pop()
                 _list.pop()
             elif last_if.stack_level > depth:
@@ -169,6 +213,9 @@ def tracer(frame: types.FrameType, event, arg):
 
         match nodes[0]:
             case ast.If():
+                # before an if-then-else we add code to calculate the set s
+                # of all current dependencies of variables in the loop/branch condition,
+                # and push this onto our current list _list
                 _list.append(set().union(*map(_map.__getitem__, load)))
                 _control_flow.append(
                     ControlFlowTracker(
@@ -177,22 +224,41 @@ def tracer(frame: types.FrameType, event, arg):
                 )
 
             case ast.For() | ast.While():
-                _list.append(
-                    set().union(*map(_map.__getitem__, load), {frame.f_lineno})
-                )
+                # Add code to calculate the set of all current dependencies of variables in the loop condition,
+                # and push this onto our current list _list
+                # The branch condition dependencies are replaced at every loop iteration
+                _list.append(set().union(*map(_map.__getitem__, load), {lineno}))
                 _control_flow.append(
                     ControlFlowTracker(
                         nodes[0].lineno, nodes[0].end_lineno, path, depth
                     )
                 )
 
+        for node in nodes:
+            # print(ast.dump(node, indent=4))
+            if isinstance(node, ast.Call):
+
+                bindings = [
+                    _map[var] | {lineno}
+                    for arg in node.args
+                    for var in get_context_id(arg, ast.Load())
+                ]
+                _precall_args.append(bindings)
+                kw_bindings = {
+                    arg.arg: _map[var] | {lineno}
+                    for arg in node.keywords
+                    for var in get_context_id(arg, ast.Load())
+                }
+                _precall_kwargs.append(kw_bindings)
+
         for var in store:
-            _map[var] = set().union(
-                *map(_map.__getitem__, load), {frame.f_lineno}, *_list
-            )
+            # union of the current line,
+            # the sets each of the rvalues of the assignment map to in _map, and
+            # the line numbers currently stored in any elements of list
+            _map[var] = set().union(*map(_map.__getitem__, load), {lineno}, *_list)
 
         print(
-            f"[{filename}:{frame.f_lineno}] -> AST Nodes: {_map} {_list} {_control_flow} {depth}"
+            f"[{filename}:{lineno}] -> AST Nodes: {_map} {_list} {_control_flow} {depth}"
         )
     return tracer
 
