@@ -8,8 +8,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, override, Generator, Literal
 
-from numpy.f2py.auxfuncs import isintent_in
-
 from src.explotest.reconstructor import Reconstructor
 
 
@@ -70,7 +68,7 @@ def find_global_vars(source: ast.Module, proc_name: str) -> list[External]:
         # print("end proc")
         named_attrs = find_names_attributes(line)
         for attr in named_attrs:
-            print(attr)
+            # print(attr)
             attribute_parent = unwrap_attribute(attr)
             if attribute_parent == "CONSTANT":
                 continue  # ignore this one, as it's an operation on a constant. string functions are immutable
@@ -78,7 +76,9 @@ def find_global_vars(source: ast.Module, proc_name: str) -> list[External]:
             if defn is None and ast.unparse(
                 ast.fix_missing_locations(attribute_parent)
             ) not in [a.arg for a in args.args]:
-                result.append(attr)
+                # we found an attribute that's external
+                # classify the attribute
+                result.append(ExternalVariable(None, attribute_parent.id))
 
     return result
 
