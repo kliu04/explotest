@@ -4,6 +4,7 @@ Sets up tracer that will track every executed line
 """
 
 import ast
+import copy
 import os
 import runpy
 import sys
@@ -18,7 +19,9 @@ class TrackedFile:
     nodes: ast.Module
     executed_lines: set[int] = field(default_factory=set)
 
-tracked_files : dict[Path, TrackedFile] = {}
+
+tracked_files: dict[Path, TrackedFile] = {}
+
 
 # TODO: check if OS independent
 def is_stdlib_file(filepath: str) -> bool:
@@ -47,7 +50,9 @@ class TraceAST(ast.NodeTransformer):
     executed_lines: set[int]
 
     def visit_If(self, node):
-        body_linenos = set(getattr(n, "lineno") for n in node.body if hasattr(n, "lineno"))
+        body_linenos = set(
+            getattr(n, "lineno") for n in node.body if hasattr(n, "lineno")
+        )
         if self.executed_lines.intersection(body_linenos):
             return ast.If(
                 node.test, list(map(self.generic_visit, node.body)), [ast.Pass()]
@@ -58,12 +63,29 @@ class TraceAST(ast.NodeTransformer):
             )
 
     def visit_For(self, node):
-        body_linenos = set(getattr(n, "lineno") for n in node.body if hasattr(n, "lineno"))
+        body_linenos = set(
+            getattr(n, "lineno") for n in node.body if hasattr(n, "lineno")
+        )
 
         # condition is false
         if not self.executed_lines.intersection(body_linenos):
-            return ast.For(node.target, node.iter, [ast.Pass()], list(map(self.generic_visit, node.orelse)))
-        return super().generic_visit(node)
+            return ast.For(
+                node.target,
+                node.iter,
+                [ast.Pass()],
+                list(map(self.generic_visit, node.orelse)),
+            )
+        return self.generic_visit(node)
+
+    def visit_FunctionDef(self, node):
+        body_linenos = set(
+            getattr(n, "lineno") for n in node.body if hasattr(n, "lineno")
+        )
+        if not self.executed_lines.intersection(body_linenos):
+            clone = copy.deepcopy(node)
+            clone.body = [ast.Pass()]
+            return clone
+        return self.generic_visit(node)
 
     def generic_visit(self, node):
         return super().generic_visit(node)
