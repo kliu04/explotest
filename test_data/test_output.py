@@ -9,13 +9,13 @@ def tr_rule(f: pd.Series, x: pd.Series, dx: float, R: int):
 
 @pytest.fixture
 def generate_f():
-    with open('./pickled/f_a6b8a525.pkl', 'rb') as f:
+    with open('./pickled/f_0a755fc5.pkl', 'rb') as f:
         f = dill.loads(f.read())
     return f
 
 @pytest.fixture
 def generate_x():
-    with open('./pickled/x_2412a1c8.pkl', 'rb') as f:
+    with open('./pickled/x_eee21359.pkl', 'rb') as f:
         x = dill.loads(f.read())
     return x
 
