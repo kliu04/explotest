@@ -6,7 +6,9 @@ It's a part of the test generation pass cycle. All global state will probably be
 import ast
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, override
+from typing import Any, override, Generator, Literal
+
+from numpy.f2py.auxfuncs import isintent_in
 
 from src.explotest.reconstructor import Reconstructor
 
@@ -51,6 +53,8 @@ def find_global_vars(source: ast.Module, proc_name: str) -> list[External]:
     Raises `ValueError` if function was not found in the source.
     """
 
+    result = []
+
     target_def = find_function_def(source, proc_name)
 
     if target_def is None:
@@ -60,7 +64,38 @@ def find_global_vars(source: ast.Module, proc_name: str) -> list[External]:
 
     args = target_def.args
 
-    # for line in source.body:
+    for idx, line in enumerate(target_def.body):
+        # print("proc: find_global_vars")
+        # print(ast.unparse(line))
+        # print("end proc")
+        named_attrs = find_names_attributes(line)
+        for attr in named_attrs:
+            print(attr)
+            attribute_parent = unwrap_attribute(attr)
+            if attribute_parent == "CONSTANT":
+                continue  # ignore this one, as it's an operation on a constant. string functions are immutable
+            defn = find_var_defn(attribute_parent, idx, target_def)
+            if defn is None and ast.unparse(
+                ast.fix_missing_locations(attribute_parent)
+            ) not in [a.arg for a in args.args]:
+                result.append(attr)
+
+    return result
+
+
+def unwrap_attribute(
+    attribute: ast.Attribute | ast.Name,
+) -> ast.Name | Literal["CONSTANT"]:
+    if isinstance(
+        attribute, ast.Constant
+    ):  # case where parent is an instance literal, e.g., a string "abc"
+        return "CONSTANT"
+
+    if isinstance(attribute, ast.Name):
+        return attribute
+    parent = attribute.value
+
+    return unwrap_attribute(parent)
 
 
 def find_names_attributes(line: ast.AST) -> list[ast.Attribute | ast.Name]:
@@ -98,7 +133,8 @@ def find_var_defn(
         if isinstance(line, ast.Assign):
             if any(
                 [
-                    target.ctx == ast.Store() and target.id == var.id
+                    ast.unparse(ast.fix_missing_locations(target))
+                    == ast.unparse(ast.fix_missing_locations(var))
                     for target in line.targets
                     if isinstance(target, ast.Name)
                 ]
