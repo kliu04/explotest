@@ -50,9 +50,9 @@ src3_expected = [
 class TestFindGlobalVars:
     def test_find_global_vars(self, source: ast.Module, expected: list[External]):
         call_res = find_global_vars(source, "target")
-        result = [ast.unparse(ast.fix_missing_locations(d)) for d in call_res]
+        # result = [ast.unparse(ast.fix_missing_locations(d)) for d in call_res]
         # print([ast.unparse(d) for d in result])
-        assert expected == result
+        assert expected == call_res
 
 
 def test_find_names_attributes():
