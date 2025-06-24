@@ -4,26 +4,21 @@ Sets up tracer that will track every executed line
 """
 
 import ast
-import dis
-import inspect
 import os
 import runpy
 import sys
 import sysconfig
 import types
-from collections import defaultdict
-
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
-@dataclass(frozen=True)
-class ControlFlowTracker:
-    start_lineno: int
-    end_lineno: int
-    path: Path
-    stack_level: int
+@dataclass
+class TrackedFile:
+    nodes: ast.Module
+    executed_lines: set[int] = field(default_factory=set)
 
+tracked_files : dict[Path, TrackedFile] = {}
 
 # TODO: check if OS independent
 def is_stdlib_file(filepath: str) -> bool:
@@ -46,58 +41,32 @@ def is_frozen_file(filepath: str) -> bool:
 ast_cache: dict[Path, dict[int, list[ast.AST]]] = (
     {}
 )  # open files -> (lineno -> ast) mapping
-_map: dict[str, set[int]] = defaultdict(set)  # variable to lineno dependencies
-_list: list[set[int]] = []  # stack of control flow dependencies
-_control_flow: list[ControlFlowTracker] = (
-    []
-)  # stack of (filename, lineno) to signify when an if ends
-_precall_args: list[list[set[int]]] = []
-# stack of list of sets to keep track of dependencies of each parameter/arg
-_precall_kwargs: list[dict[str, set[int]]] = []
 
 
-class LineAstMapper(ast.NodeVisitor):
-    """Walks the AST to map each lineno to corresponding AST nodes"""
+class TraceAST(ast.NodeTransformer):
+    executed_lines: set[int]
 
-    def __init__(self):
-        self.line_to_nodes = defaultdict(list)
+    def visit_If(self, node):
+        body_linenos = set(getattr(n, "lineno") for n in node.body if hasattr(n, "lineno"))
+        if self.executed_lines.intersection(body_linenos):
+            return ast.If(
+                node.test, list(map(self.generic_visit, node.body)), [ast.Pass()]
+            )
+        else:
+            return ast.If(
+                node.test, [ast.Pass()], list(map(self.generic_visit, node.orelse))
+            )
+
+    def visit_For(self, node):
+        body_linenos = set(getattr(n, "lineno") for n in node.body if hasattr(n, "lineno"))
+
+        # condition is false
+        if not self.executed_lines.intersection(body_linenos):
+            return ast.For(node.target, node.iter, [ast.Pass()], list(map(self.generic_visit, node.orelse)))
+        return super().generic_visit(node)
 
     def generic_visit(self, node):
-        if hasattr(node, "lineno"):
-            self.line_to_nodes[node.lineno].append(node)
-        super().generic_visit(node)
-
-
-def parse_ast(path: Path) -> dict[int, list[ast.AST]]:
-    """Parses the file represented by path into a map of lineno to AST nodes"""
-    source = path.read_text()
-    tree = ast.parse(source, filename=path.name)
-    mapper = LineAstMapper()
-    mapper.visit(tree)
-    return mapper.line_to_nodes
-
-
-def get_ast_nodes(path: Path, lineno: int) -> list[ast.AST]:
-    """Saves a cache of previously opened files"""
-    if path not in ast_cache:
-        ast_cache[path] = parse_ast(path)
-    return ast_cache[path].get(lineno, [])
-
-
-def get_context_id(node: ast.AST, context: ast.expr_context) -> list[str]:
-    """searches for load or store contexts"""
-    res: list[str] = []
-
-    class ContextFinder(ast.NodeVisitor):
-        """Walks the AST to map each lineno to corresponding AST nodes"""
-
-        def visit_Name(self, node: ast.Name):
-            if isinstance(node.ctx, type(context)):
-                res.append(node.id)
-            self.generic_visit(node)
-
-    ContextFinder().visit(node)
-    return res
+        return super().generic_visit(node)
 
 
 def tracer(frame: types.FrameType, event, arg):
@@ -109,157 +78,26 @@ def tracer(frame: types.FrameType, event, arg):
     #     :return: must return this object for tracing to work
     """
     filename = frame.f_globals.get("__file__", "<unknown>")
-    frame.f_trace_opcodes = True
-    bytecode = dis.Bytecode(frame.f_code)
-    path = Path(filename)
-    path.resolve()
-    lineno = frame.f_lineno
-    nodes = get_ast_nodes(path, lineno)
-
     # ignore files we don't have access to
     if is_frozen_file(filename) or is_stdlib_file(filename) or is_venv_file(filename):
         return tracer
 
-    if event == "call":
+    path = Path(filename)
+    path.resolve()
 
-        # python interpreter interprets loading a module as calling a function wrapper of the module
-        if lineno == 0:
-            return tracer
+    source = path.read_text()
+    lineno = frame.f_lineno
 
-        last_precall = _precall_args.pop()
-        last_precall_kw = _precall_kwargs.pop()
+    if tracked_files.get(path):
+        t = tracked_files[path]
+    else:
+        tree = ast.parse(source, filename=path.name)
+        t = TrackedFile(tree)
+        tracked_files[path] = t
 
-        func = frame.f_globals[frame.f_code.co_name]
-        signature = inspect.signature(func)
+    if event == "line":
+        t.executed_lines.add(lineno)
 
-        num_positional_args = len(last_precall)
-        pos_index = 0
-
-        for parameter in signature.parameters.values():
-            name = parameter.name
-            match parameter.kind:
-                case inspect.Parameter.POSITIONAL_ONLY:
-                    if pos_index < num_positional_args:
-                        _map[name] = last_precall[pos_index] | {lineno}
-                        pos_index += 1
-                    else:
-                        raise AssertionError("This should never happen.")
-                case inspect.Parameter.POSITIONAL_OR_KEYWORD:
-                    if name in last_precall_kw:
-                        _map[name] = last_precall_kw[name] | {lineno}
-                    elif pos_index < num_positional_args:
-                        _map[name] = last_precall[pos_index] | {lineno}
-                        pos_index += 1
-                    else:
-                        _map[name] = {lineno}  # default argument
-                case inspect.Parameter.VAR_POSITIONAL:
-                    pass  # not yet implemented
-                case inspect.Parameter.KEYWORD_ONLY:
-                    if name in last_precall_kw:
-                        _map[name] = last_precall_kw[name] | {lineno}
-                    else:
-                        _map[name] = {lineno}  # default argument
-                case inspect.Parameter.VAR_KEYWORD:
-                    pass  # not yet implemented
-
-    elif event == "line":
-        instructions = list(filter(lambda instr: instr.line_number == lineno, bytecode))
-
-        load = set()
-        store = set()
-
-        for instr in instructions:
-            arg = instr.argrepr
-
-            match instr.opname:
-                case "LOAD_NAME" | "LOAD_FAST":
-                    load.add(arg)
-                case "STORE_NAME" | "STORE_FAST":
-                    store.add(arg)
-                case "LOAD_FAST_LOAD_FAST":
-                    arg = map(
-                        str.strip, arg.split(",")
-                    )  # convert str "(x, y)" to tuple ("x", "y")
-                    for a in arg:
-                        load.add(a)
-                case "STORE_FAST_STORE_FAST":
-                    arg = map(
-                        str.strip, arg.split(",")
-                    )  # convert str "(x, y)" to tuple ("x", "y")
-                    for a in arg:
-                        store.add(a)
-
-        depth = 0
-        f = frame
-        while f:
-            depth += 1
-            f = f.f_back
-
-        while len(_control_flow) > 0:
-            assert len(_control_flow) == len(_list)
-            last_if = _control_flow[-1]
-            if (
-                lineno >= last_if.end_lineno
-                and last_if.stack_level == depth
-                and last_if.path == path
-            ):
-                _control_flow.pop()
-                _list.pop()
-            elif last_if.stack_level > depth:
-                _control_flow.pop()
-                _list.pop()
-            else:
-                break
-
-        match nodes[0]:
-            case ast.If():
-                # before an if-then-else we add code to calculate the set s
-                # of all current dependencies of variables in the loop/branch condition,
-                # and push this onto our current list _list
-                _list.append(set().union(*map(_map.__getitem__, load)))
-                _control_flow.append(
-                    ControlFlowTracker(
-                        nodes[0].lineno, nodes[0].end_lineno, path, depth
-                    )
-                )
-
-            case ast.For() | ast.While():
-                # Add code to calculate the set of all current dependencies of variables in the loop condition,
-                # and push this onto our current list _list
-                # The branch condition dependencies are replaced at every loop iteration
-                _list.append(set().union(*map(_map.__getitem__, load), {lineno}))
-                _control_flow.append(
-                    ControlFlowTracker(
-                        nodes[0].lineno, nodes[0].end_lineno, path, depth
-                    )
-                )
-
-        for node in nodes:
-            # print(ast.dump(node, indent=4))
-            if isinstance(node, ast.Call):
-
-                bindings = [
-                    _map[var] | {lineno}
-                    for arg in node.args
-                    for var in get_context_id(arg, ast.Load())
-                ]
-                _precall_args.append(bindings)
-                kw_bindings = {
-                    arg.arg: _map[var] | {lineno}
-                    for arg in node.keywords
-                    for var in get_context_id(arg, ast.Load())
-                }
-                _precall_kwargs.append(kw_bindings)
-
-        for var in store:
-            # union of the current line,
-            # the sets each of the rvalues of the assignment map to in _map, and
-            # the line numbers currently stored in any elements of list
-            _map[var] = set().union(*map(_map.__getitem__, load), {lineno}, *_list)
-
-        print(
-            f"[{filename}:{lineno}] -> AST Nodes: {_map} {_list} {_control_flow} {depth}"
-        )
     return tracer
 
 
@@ -276,6 +114,14 @@ def main():
     sys.settrace(tracer)
     runpy.run_path(target, run_name="__main__")
     sys.settrace(None)
+
+    for f in tracked_files.values():
+        t = TraceAST()
+        t.executed_lines = f.executed_lines
+        n = t.visit(f.nodes)
+        print(ast.unparse(ast.fix_missing_locations(n)))
+
+    print(tracked_files)
 
 
 if __name__ == "__main__":
