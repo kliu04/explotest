@@ -23,6 +23,33 @@ class ControlFlowTracker:
     end_lineno: int
     path: Path
     stack_level: int
+    
+class ListTracker:
+    elements: dict[int, set[int]]
+    name: str
+    
+    def __init__(self, name):
+        self.name = name
+        self.elements = {}
+    
+    def __getitem__(self, item: int) -> set[int]:
+        return self.elements[item]
+    
+    def __setitem__(self, key, value):
+        self.elements[key] = value
+    
+    def __len__(self):
+        return self.elements.__len__()
+    
+    def __iter__(self):
+        return self.elements.__iter__()
+    
+    def __contains__(self, item):
+        return self.elements.__contains__(item)
+    
+    def get_dependencies(self):
+        # flatten
+        return set.union(*self.elements.values())
 
 
 # TODO: check if OS independent
@@ -55,7 +82,6 @@ _precall_args: list[list[set[int]]] = []
 # stack of list of sets to keep track of dependencies of each parameter/arg
 _precall_kwargs: list[dict[str, set[int]]] = []
 
-
 class LineAstMapper(ast.NodeVisitor):
     """Walks the AST to map each lineno to corresponding AST nodes"""
 
@@ -84,7 +110,7 @@ def get_ast_nodes(path: Path, lineno: int) -> list[ast.AST]:
     return ast_cache[path].get(lineno, [])
 
 
-def get_context_id(node: ast.AST, context: ast.expr_context) -> list[str]:
+def get_context_id(node: ast.AST, context: ast.Load | ast.Store ) -> list[str]:
     """searches for load or store contexts"""
     res: list[str] = []
 
@@ -169,7 +195,7 @@ def tracer(frame: types.FrameType, event, arg):
         store = set()
 
         for instr in instructions:
-            arg = instr.argrepr
+            arg = instr.argval
 
             match instr.opname:
                 case "LOAD_NAME" | "LOAD_FAST":
@@ -177,17 +203,14 @@ def tracer(frame: types.FrameType, event, arg):
                 case "STORE_NAME" | "STORE_FAST":
                     store.add(arg)
                 case "LOAD_FAST_LOAD_FAST":
-                    arg = map(
-                        str.strip, arg.split(",")
-                    )  # convert str "(x, y)" to tuple ("x", "y")
                     for a in arg:
                         load.add(a)
                 case "STORE_FAST_STORE_FAST":
-                    arg = map(
-                        str.strip, arg.split(",")
-                    )  # convert str "(x, y)" to tuple ("x", "y")
                     for a in arg:
                         store.add(a)
+                case "STORE_SUBSCR":
+                    pass
+                    
 
         depth = 0
         f = frame
