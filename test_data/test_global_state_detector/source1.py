@@ -8,14 +8,14 @@ def add_elem(data: Any) -> None:
     lst.append(data)
 
 
-def target() -> Any: # 
-    return lst[-1]
+def target(i) -> Any:  #
+    return lst[i]
 
 
 def main():
     add_elem("hello")
     add_elem("world")
-    print(target())
+    print(target(-1))
 
 
 if __name__ == "__main__":
