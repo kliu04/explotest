@@ -4,7 +4,6 @@ Sets up tracer that will track every executed line
 """
 
 import ast
-import copy
 import os
 import runpy
 import sys
@@ -49,46 +48,55 @@ ast_cache: dict[Path, dict[int, list[ast.AST]]] = (
 class TraceAST(ast.NodeTransformer):
     executed_lines: set[int]
 
+    @staticmethod
+    def _get_all_linenos(nodes):
+        """Recursively collect all line numbers from a list of AST nodes"""
+        linenos = set()
+        for node in nodes:
+            if hasattr(node, "lineno"):
+                linenos.add(node.lineno)
+            # Recursively collect from all child nodes
+            for child in ast.walk(node):
+                if hasattr(child, "lineno"):
+                    linenos.add(child.lineno)
+
+        return set(x for x in range(min(linenos), max(linenos)+1))
+
     def visit_If(self, node):
-        body_linenos = set(
-            getattr(n, "lineno") for n in node.body if hasattr(n, "lineno")
-        )
-        if self.executed_lines.intersection(body_linenos):
-            return ast.If(
-                node.test, list(map(self.generic_visit, node.body)), [ast.Pass()]
-            )
+
+        # visit children recursively
+        super().generic_visit(node)
+
+        body_linenos = self._get_all_linenos(node.body)
+        body_was_executed = bool(self.executed_lines.intersection(body_linenos))
+
+        if body_was_executed:
+            return node.body
         else:
-            return ast.If(
-                node.test, [ast.Pass()], list(map(self.generic_visit, node.orelse))
-            )
+            return node.orelse
 
     def visit_For(self, node):
-        body_linenos = set(
-            getattr(n, "lineno") for n in node.body if hasattr(n, "lineno")
-        )
+
+        super().generic_visit(node)
+
+        body_linenos = self._get_all_linenos(node.body)
+        body_was_executed = bool(self.executed_lines.intersection(body_linenos))
+
 
         # condition is false
-        if not self.executed_lines.intersection(body_linenos):
-            return ast.For(
-                node.target,
-                node.iter,
-                [ast.Pass()],
-                list(map(self.generic_visit, node.orelse)),
-            )
-        return self.generic_visit(node)
+        if not body_was_executed:
+            return None
+        return node
 
     def visit_FunctionDef(self, node):
-        body_linenos = set(
-            getattr(n, "lineno") for n in node.body if hasattr(n, "lineno")
-        )
-        if not self.executed_lines.intersection(body_linenos):
-            clone = copy.deepcopy(node)
-            clone.body = [ast.Pass()]
-            return clone
-        return self.generic_visit(node)
+        super().generic_visit(node)
 
-    def generic_visit(self, node):
-        return super().generic_visit(node)
+        body_linenos = (x for x in range(node.lineno+1, node.end_lineno + 1))
+        body_was_executed = bool(self.executed_lines.intersection(body_linenos))
+        if not body_was_executed:
+            return None
+        return node
+
 
 
 def tracer(frame: types.FrameType, event, arg):
@@ -138,12 +146,15 @@ def main():
     sys.settrace(None)
 
     for f in tracked_files.values():
+        # with open("demo.txt", "w") as file:
+        #     file.write(ast.dump(f.nodes, indent=4, include_attributes=True))
         t = TraceAST()
         t.executed_lines = f.executed_lines
+        # print(ast.dump(f.nodes, indent=4))
         n = t.visit(f.nodes)
         print(ast.unparse(ast.fix_missing_locations(n)))
 
-    print(tracked_files)
+
 
 
 if __name__ == "__main__":
