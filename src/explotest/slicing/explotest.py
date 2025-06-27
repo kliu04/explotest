@@ -40,13 +40,8 @@ def is_frozen_file(filepath: str) -> bool:
     return filepath.startswith("<frozen ")
 
 
-ast_cache: dict[Path, dict[int, list[ast.AST]]] = (
-    {}
-)  # open files -> (lineno -> ast) mapping
-
-
-class TraceAST(ast.NodeTransformer):
-    executed_lines: set[int]
+class ASTTracer(ast.NodeTransformer):
+    tracked_file: TrackedFile
 
     @staticmethod
     def _get_all_linenos(nodes):
@@ -60,7 +55,7 @@ class TraceAST(ast.NodeTransformer):
                 if hasattr(child, "lineno"):
                     linenos.add(child.lineno)
 
-        return set(x for x in range(min(linenos), max(linenos)+1))
+        return set(x for x in range(min(linenos), max(linenos) + 1))
 
     def visit_If(self, node):
 
@@ -68,7 +63,9 @@ class TraceAST(ast.NodeTransformer):
         super().generic_visit(node)
 
         body_linenos = self._get_all_linenos(node.body)
-        body_was_executed = bool(self.executed_lines.intersection(body_linenos))
+        body_was_executed = bool(
+            self.tracked_file.executed_lines.intersection(body_linenos)
+        )
 
         if body_was_executed:
             return node.body
@@ -80,8 +77,9 @@ class TraceAST(ast.NodeTransformer):
         super().generic_visit(node)
 
         body_linenos = self._get_all_linenos(node.body)
-        body_was_executed = bool(self.executed_lines.intersection(body_linenos))
-
+        body_was_executed = bool(
+            self.tracked_file.executed_lines.intersection(body_linenos)
+        )
 
         # condition is false
         if not body_was_executed:
@@ -91,12 +89,44 @@ class TraceAST(ast.NodeTransformer):
     def visit_FunctionDef(self, node):
         super().generic_visit(node)
 
-        body_linenos = (x for x in range(node.lineno+1, node.end_lineno + 1))
-        body_was_executed = bool(self.executed_lines.intersection(body_linenos))
+        body_linenos = (x for x in range(node.lineno + 1, node.end_lineno + 1))
+        body_was_executed = bool(
+            self.tracked_file.executed_lines.intersection(body_linenos)
+        )
         if not body_was_executed:
             return None
         return node
 
+
+class ASTFlattener(ast.NodeTransformer):
+
+    # unpack x, y, z = a, b, c into multiple lines
+    def visit_Assign(self, node):
+        self.generic_visit(node)
+
+        # check for a tuple unpacking assignment
+        if (
+            isinstance(node.targets[0], ast.Tuple)
+            and isinstance(node.value, ast.Tuple)
+            and len(node.targets[0].elts) == len(node.value.elts)
+        ):
+            # generate one assignment per target-value pair
+            new_nodes = [
+                ast.Assign(targets=[target], value=value)
+                for target, value in zip(node.targets[0].elts, node.value.elts)
+            ]
+            return new_nodes
+
+        return node
+
+    def visit_Call(self, node):
+        self.generic_visit(node)
+        new_nodes = []
+        return node
+
+    def visit_Subscript(self, node):
+        self.generic_visit(node)
+        return node
 
 
 def tracer(frame: types.FrameType, event, arg):
@@ -146,15 +176,11 @@ def main():
     sys.settrace(None)
 
     for f in tracked_files.values():
-        # with open("demo.txt", "w") as file:
-        #     file.write(ast.dump(f.nodes, indent=4, include_attributes=True))
-        t = TraceAST()
-        t.executed_lines = f.executed_lines
+        t = ASTTracer()
+        t.tracked_file = f
         # print(ast.dump(f.nodes, indent=4))
         n = t.visit(f.nodes)
         print(ast.unparse(ast.fix_missing_locations(n)))
-
-
 
 
 if __name__ == "__main__":
