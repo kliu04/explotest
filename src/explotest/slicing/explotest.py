@@ -139,8 +139,12 @@ class ASTFlattener(ast.NodeTransformer):
 
     def visit_Subscript(self, node):
         self.generic_visit(node)
-        
-        self.temp_assignments = [ast.Assign(targets=[ast.Name(id=f"temp", ctx=ast.Store())], value=node.slice)]
+
+        self.temp_assignments = [
+            ast.Assign(
+                targets=[ast.Name(id=f"temp", ctx=ast.Store())], value=node.slice
+            )
+        ]
         node.slice = ast.Name("temp", ctx=ast.Load())
         return node
 
