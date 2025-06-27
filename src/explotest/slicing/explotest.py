@@ -100,8 +100,12 @@ class ASTTracer(ast.NodeTransformer):
 
 class ASTFlattener(ast.NodeTransformer):
 
-    # unpack x, y, z = a, b, c into multiple lines
+    temp_assignments: list[ast.Assign] = None
+
     def visit_Assign(self, node):
+        """
+        unpack x, y, z = a, b, c into multiple lines
+        """
         self.generic_visit(node)
 
         # check for a tuple unpacking assignment
@@ -111,22 +115,39 @@ class ASTFlattener(ast.NodeTransformer):
             and len(node.targets[0].elts) == len(node.value.elts)
         ):
             # generate one assignment per target-value pair
-            new_nodes = [
+            self.temp_assignments = [
                 ast.Assign(targets=[target], value=value)
                 for target, value in zip(node.targets[0].elts, node.value.elts)
             ]
-            return new_nodes
+            return None
 
         return node
 
     def visit_Call(self, node):
+        """
+        unpack expressions in call contexts
+        """
         self.generic_visit(node)
-        new_nodes = []
+        self.temp_assignments = [
+            ast.Assign(targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())], value=arg)
+            for i, arg in enumerate(node.args)
+        ]
+        node.args = [
+            ast.Name(id=f"temp_{i}", ctx=ast.Load()) for i in range(len(node.args))
+        ]
         return node
 
     def visit_Subscript(self, node):
         self.generic_visit(node)
         return node
+
+    def flatten(self, stmt: ast.AST) -> list[ast.AST]:
+        self.temp_assignments = []
+
+        new_stmt = self.visit(stmt)
+        all_statements = self.temp_assignments + [new_stmt]
+        all_statements = filter(lambda x: x is not None, all_statements)
+        return list(map(ast.fix_missing_locations, all_statements))
 
 
 def tracer(frame: types.FrameType, event, arg):
@@ -178,9 +199,18 @@ def main():
     for f in tracked_files.values():
         t = ASTTracer()
         t.tracked_file = f
-        # print(ast.dump(f.nodes, indent=4))
         n = t.visit(f.nodes)
-        print(ast.unparse(ast.fix_missing_locations(n)))
+        n = ast.fix_missing_locations(n)
+
+        flattener = ASTFlattener()
+        new_statements = []
+        for stmt in n.body:
+            new_statements.extend(flattener.flatten(stmt))
+
+        # Create new module with flattened statements
+        new_tree = ast.Module(body=new_statements, type_ignores=[])
+
+        print(ast.unparse(ast.fix_missing_locations(new_tree)))
 
 
 if __name__ == "__main__":
