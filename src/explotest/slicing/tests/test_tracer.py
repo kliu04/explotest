@@ -20,7 +20,7 @@ def test_tracer_1(setup_example):
     tracer.tracked_file = file
     result = tracer.visit(file.nodes)
     with open("files/ex1r.py") as f:
-        return result == f.read()
+        assert ast.dump(result) == ast.dump(ast.parse(f.read()))
 
 
 def test_tracer_2(setup_example):
@@ -29,4 +29,4 @@ def test_tracer_2(setup_example):
     tracer.tracked_file = file
     result = tracer.visit(file.nodes)
     with open("files/ex2r.py") as f:
-        return result == f.read()
+        assert ast.dump(result) == ast.dump(ast.parse(f.read()))

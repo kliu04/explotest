@@ -129,24 +129,51 @@ class ASTFlattener(ast.NodeTransformer):
         """
         self.generic_visit(node)
         self.temp_assignments = [
-            ast.Assign(targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())], value=arg)
+            ast.Assign(
+                targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())],
+                value=arg.value if isinstance(arg, ast.Starred) else arg,
+            )
             for i, arg in enumerate(node.args)
         ]
         node.args = [
-            ast.Name(id=f"temp_{i}", ctx=ast.Load()) for i in range(len(node.args))
+            (
+                ast.Starred(value=ast.Name(id=f"temp_{i}", ctx=ast.Load()), ctx=arg.ctx)
+                if isinstance(arg, ast.Starred)
+                else ast.Name(id=f"temp_{i}", ctx=ast.Load())
+            )
+            for i, arg in enumerate(node.args)
         ]
+
         return node
 
     def visit_Subscript(self, node):
         self.generic_visit(node)
 
-        self.temp_assignments = [
-            ast.Assign(
-                targets=[ast.Name(id=f"temp", ctx=ast.Store())], value=node.slice
+        if isinstance(node.slice, ast.Slice):
+            self.temp_assignments = [
+                ast.Assign(
+                    targets=[ast.Name(id=f"temp_0", ctx=ast.Store())],
+                    value=node.slice.lower,
+                ),
+                ast.Assign(
+                    targets=[ast.Name(id=f"temp_1", ctx=ast.Store())],
+                    value=node.slice.upper,
+                ),
+            ]
+
+            node.slice = ast.Slice(
+                ast.Name(id="temp_0", ctx=ast.Load()),
+                ast.Name(id="temp_1", ctx=ast.Load()),
             )
-        ]
-        node.slice = ast.Name("temp", ctx=ast.Load())
-        return node
+            return node
+        else:
+            self.temp_assignments = [
+                ast.Assign(
+                    targets=[ast.Name(id=f"temp", ctx=ast.Store())], value=node.slice
+                )
+            ]
+            node.slice = ast.Name("temp", ctx=ast.Load())
+            return node
 
     def flatten(self, stmt: ast.AST) -> list[ast.AST]:
         self.temp_assignments = []
