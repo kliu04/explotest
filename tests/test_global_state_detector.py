@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from explotest.global_state_detector import find_line_attrs_in_sv_comp
 from src.explotest.global_state_detector import (
     find_global_vars,
     External,
@@ -36,14 +37,19 @@ src3_expected = [
     ExternalProcedure(name="flask.helpers.url_for()", value=None),
 ]
 
+src4_expected = []
+
 
 @pytest.mark.parametrize(
     "source,expected",
     [
         (ast.parse(src.read_text()), expected)
         for src, expected in zip(
-            Path("../test_data/test_global_state_detector").glob("**.py"),
-            [src1_expected, src2_expected, src3_expected],
+            sorted(
+                Path("../test_data/test_global_state_detector").glob("**.py"),
+                key=lambda obj: str(obj),
+            ),
+            [src1_expected, src2_expected, src3_expected, src4_expected],
         )
     ],
 )
@@ -99,3 +105,9 @@ def foo():
     assert unparse(expected_defn) == unparse(
         find_var_defn(call.func.value, 1, target_func)
     )
+
+
+def test_find_line_attrs():
+    comp = parse("[x for x in y]").body[0].value
+
+    assert [] == [unparse(a) for a in find_line_attrs_in_sv_comp(comp)]
