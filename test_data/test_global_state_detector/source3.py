@@ -166,10 +166,36 @@ class ActiveItemsAPI(MethodView):
         return jsonify(items_schema(items, current, prev, next, pagination))
 
 
+def target(self):
+    """Get current user's completed items."""
+    page = request.args.get(
+        "page", 1, type=int
+    )  # external state, because `request.args.get` calls an external procedure
+    pagination = (
+        Item.query.with_parent(g.current_user)
+        .filter_by(done=True)
+        .paginate(page, per_page=current_app.config["TODOISM_ITEM_PER_PAGE"])
+    )  # external state, because request.args.get calls an external procedure
+    items = pagination.items  # accessing attribute of global state
+    current = url_for(
+        ".items", page=page, _external=True
+    )  # pure function, but could also be external state
+    prev = None
+    if pagination.has_prev:
+        prev = url_for(".completed_items", page=page - 1, _external=True)  # same here
+    next = None
+    if pagination.has_next:
+        next = url_for(".completed_items", page=page + 1, _external=True)  # same here
+    import numpy as np
+
+    np.sin()
+    return jsonify(items_schema(items, current, prev, next, pagination))
+
+
 class CompletedItemsAPI(MethodView):
     decorators = [auth_required]
 
-    def get(self):
+    def target(self):
         """Get current user's completed items."""
         page = request.args.get(
             "page", 1, type=int
