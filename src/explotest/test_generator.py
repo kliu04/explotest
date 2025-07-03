@@ -11,6 +11,7 @@ from .helpers import Mode
 from .helpers import sanitize_name
 from .pickle_reconstructor import PickleReconstructor
 from .reconstructor import Reconstructor
+from .slice_reconstructor import SliceReconstructor
 
 
 class TestGenerator:
@@ -29,7 +30,7 @@ class TestGenerator:
             case Mode.PICKLE:
                 self.reconstructor = PickleReconstructor(file_path)
             case Mode.SLICE:
-                raise NotImplementedError("Slicing is currently not supported.")
+                self.reconstructor = SliceReconstructor(file_path)
             case _:
                 raise Exception(f"Unknown Mode: {mode}")
 

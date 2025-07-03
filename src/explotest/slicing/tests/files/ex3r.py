@@ -1,0 +1,9 @@
+arr = [1, 2, 3, 4, 5]
+x = 0
+temp = x + 3
+arr[temp] = 13
+temp = x
+arr[temp] = 1
+temp_0 = 1
+temp_1 = 2
+arr[temp_0:temp_1] = (4, 5)
