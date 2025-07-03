@@ -189,11 +189,11 @@ class ASTFlattener(ast.NodeTransformer):
         if isinstance(node.slice, ast.Slice):
             self.temp_assignments = [
                 ast.Assign(
-                    targets=[ast.Name(id=f"temp_0", ctx=ast.Store())],
+                    targets=[ast.Name(id="temp_0", ctx=ast.Store())],
                     value=node.slice.lower,
                 ),
                 ast.Assign(
-                    targets=[ast.Name(id=f"temp_1", ctx=ast.Store())],
+                    targets=[ast.Name(id="temp_1", ctx=ast.Store())],
                     value=node.slice.upper,
                 ),
             ]
@@ -206,7 +206,7 @@ class ASTFlattener(ast.NodeTransformer):
         else:
             self.temp_assignments = [
                 ast.Assign(
-                    targets=[ast.Name(id=f"temp", ctx=ast.Store())], value=node.slice
+                    targets=[ast.Name(id="temp", ctx=ast.Store())], value=node.slice
                 )
             ]
             node.slice = ast.Name("temp", ctx=ast.Load())
