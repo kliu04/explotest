@@ -55,7 +55,6 @@ def lineno() -> int:
 @pytest.fixture
 def run_program(program: list[str]) -> TerminalInteractiveShell:
     shell = TerminalInteractiveShell()
-    shell.run_line_magic("cd", "../test_data")
     for i, line in enumerate(program):
         shell.run_cell(line, store_history=True)
     return shell

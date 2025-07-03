@@ -38,7 +38,7 @@ import numpy as np
 
         """,
             """
-values = pd.read_csv(r"./A17.csv", names=[r"f"])
+values = pd.read_csv(r"./data/A17.csv", names=[r"f"])
         """,
             """
 n = values.iloc[-1].name
@@ -70,7 +70,6 @@ tr_rule(values['f'], values['x'], dx, 1)
     @pytest.fixture
     def run_program(self, program: list[str]) -> TerminalInteractiveShell:
         shell = TerminalInteractiveShell()
-        shell.run_line_magic("cd", "../test_data")
         for i, line in enumerate(program):
             shell.run_cell(line, store_history=True)
         return shell
@@ -80,7 +79,6 @@ tr_rule(values['f'], values['x'], dx, 1)
         monkeypatch.setattr(magic_arguments, "parse_argstring", patched)
 
     # @pytest.mark.timeout(3) # 3s max for this test.
-    # @pytest.mark.skip(reason='infinite loop/way too buggy')
     def test_wrapper_generated_test(self, run_program):
         result: GeneratedTest = generate_tests_wrapper(run_program)()
         assert isinstance(result, GeneratedTest)
