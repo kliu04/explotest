@@ -97,6 +97,36 @@ class ASTTracer(ast.NodeTransformer):
             return None
         return node
 
+    def visit_Try(self, node):
+        super().generic_visit(node)
+        handler_linenos = self._get_all_linenos(node.handlers)
+        handler_was_executed = bool(
+            self.tracked_file.executed_lines.intersection(handler_linenos)
+        )
+
+        if not handler_was_executed:
+            # change catching exception to pass
+            return ast.Try(
+                node.body,
+                [
+                    ast.ExceptHandler(
+                        type=ast.Name(id="Exception", ctx=ast.Load()),
+                        name="e",
+                        body=[ast.Pass()],
+                    )
+                ],
+                node.orelse,
+                node.finalbody,
+            )
+
+        # remove else since exception was raised
+        return ast.Try(
+            node.body,
+            node.handlers,
+            None,
+            node.finalbody,
+        )
+
 
 class ASTFlattener(ast.NodeTransformer):
 
@@ -120,6 +150,13 @@ class ASTFlattener(ast.NodeTransformer):
                 for target, value in zip(node.targets[0].elts, node.value.elts)
             ]
             return None
+
+        if isinstance(node.value, ast.IfExp):
+            return ast.If(
+                node.value.test,
+                [ast.Assign(targets=[node.targets[0]], value=node.value.body)],
+                [ast.Assign(targets=[node.targets[0]], value=node.value.orelse)],
+            )
 
         return node
 
