@@ -257,9 +257,7 @@ fabric.properties
 # because we use pip-tools
 requirements.txt
 
-test_data/pickled/
-demos/pickled/
 
 **/.DS_Store
 
-demos/test**
+tests/pickled
