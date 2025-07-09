@@ -14,8 +14,9 @@ def setup_example():
     return _load_ast
 
 
-@pytest.mark.parametrize("example_name", ["ex3"])
+@pytest.mark.parametrize("example_name", ["ex3", "ex4"])
 def test_rewriter(example_name, setup_example):
     rewriter = ASTRewriter()
     result = rewriter.rewrite(setup_example(example_name))
+    print(ast.unparse(result))
     assert ast.dump(result) == ast.dump(setup_example(f"{example_name}r"))

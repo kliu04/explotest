@@ -148,17 +148,19 @@ class ASTRewriter(ast.NodeTransformer):
             and isinstance(node.value, ast.Tuple)
             and len(node.targets[0].elts) == len(node.value.elts)
         ):
+            tv = list(zip(node.targets[0].elts, node.value.elts))
+            t, v = tv.pop()
+            assign = ast.Assign(targets=[t], value=v)
+            assign.parent = node.parent
             # generate one assignment per target-value pair
             self.queue.append(
                 (
-                    [
-                        ast.Assign(targets=[target], value=value)
-                        for target, value in zip(node.targets[0].elts, node.value.elts)
-                    ],
-                    node,
+                    [ast.Assign(targets=[target], value=value) for target, value in tv],
+                    assign,
                 )
             )
-            return None
+            # need to fix the way that finding parents works
+            return assign
 
         if isinstance(node.value, ast.IfExp):
             return ast.If(
@@ -255,16 +257,22 @@ class ASTRewriter(ast.NodeTransformer):
     @staticmethod
     def insert_assignments(assignments, node):
         parent = node.parent
-        # Walk up to find a parent that has a "body" list containing the node
+        # walk up to find a parent that has a "body" list containing the node
         while parent:
             for attr in ["body", "orelse", "finalbody"]:
                 if hasattr(parent, attr):
                     body = getattr(parent, attr)
-                    if isinstance(body, list) and node.parent in body:
+                    if isinstance(body, list) and (node.parent in body):
                         index = body.index(node.parent)
                         body[index:index] = assignments  # insert before
                         return
+                    if isinstance(body, list) and (node in body):
+                        index = body.index(node)
+                        body[index:index] = assignments  # insert before
+                        return
             parent = parent.parent
+
+        raise RuntimeError("Cannot find place to insert assignments.")
 
 
 def tracer(frame: types.FrameType, event, arg):
