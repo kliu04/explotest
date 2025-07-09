@@ -21,25 +21,8 @@ class TrackedFile:
 tracked_files: dict[Path, TrackedFile] = {}
 
 
-# TODO: fix this
-def is_stdlib_file(filepath: str) -> bool:
-    """Determine if a file is part of the standard library;
-    E.g., /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/..."""
-    filepath = os.path.abspath(filepath)
-    for path in sys.path:
-        if "site-packages" in path.lower():
-            continue  # skip user/site packages
-        if path and filepath.startswith(os.path.abspath(path)):
-            return True
-    return False
-
-
-def is_venv_file(filepath: str) -> bool:
-    return ".venv" in filepath
-
-
-def is_frozen_file(filepath: str) -> bool:
-    return filepath.startswith("<frozen ")
+def is_lib_file(filepath: str) -> bool:
+    return any(substring in filepath for substring in ("3.13", ".venv", "<frozen"))
 
 
 class ASTTracer(ast.NodeTransformer):
@@ -137,24 +120,25 @@ class ASTTracer(ast.NodeTransformer):
         )
 
 
-queue = []
-
-
 class ASTRewriter(ast.NodeTransformer):
 
-    temp_assignments: list[ast.Assign] = None
+    queue: list[tuple[list[ast.AST], ast.AST]]
+
+    def __init__(self):
+        super().__init__()
+        self.queue = []
 
     def visit_If(self, node):
         self.generic_visit(node)
 
-        if node.orelse is None:
+        if not node.orelse:
             node.orelse = [ast.Pass()]
 
         return node
 
     def visit_Assign(self, node: ast.Assign):
         """
-        unpack x, y, z = a, b, c into multiple lines
+        unpacks tuple assignments and ifexp assignments
         """
         self.generic_visit(node)
 
@@ -165,10 +149,15 @@ class ASTRewriter(ast.NodeTransformer):
             and len(node.targets[0].elts) == len(node.value.elts)
         ):
             # generate one assignment per target-value pair
-            self.temp_assignments = [
-                ast.Assign(targets=[target], value=value)
-                for target, value in zip(node.targets[0].elts, node.value.elts)
-            ]
+            self.queue.append(
+                (
+                    [
+                        ast.Assign(targets=[target], value=value)
+                        for target, value in zip(node.targets[0].elts, node.value.elts)
+                    ],
+                    node,
+                )
+            )
             return None
 
         if isinstance(node.value, ast.IfExp):
@@ -185,13 +174,18 @@ class ASTRewriter(ast.NodeTransformer):
         unpack expressions in call contexts
         """
         self.generic_visit(node)
-        self.temp_assignments = [
-            ast.Assign(
-                targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())],
-                value=arg.value if isinstance(arg, ast.Starred) else arg,
+        self.queue.append(
+            (
+                [
+                    ast.Assign(
+                        targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())],
+                        value=arg.value if isinstance(arg, ast.Starred) else arg,
+                    )
+                    for i, arg in enumerate(node.args)
+                ],
+                node,
             )
-            for i, arg in enumerate(node.args)
-        ]
+        )
         node.args = [
             (
                 ast.Starred(value=ast.Name(id=f"temp_{i}", ctx=ast.Load()), ctx=arg.ctx)
@@ -207,24 +201,31 @@ class ASTRewriter(ast.NodeTransformer):
         self.generic_visit(node)
 
         if isinstance(node.slice, ast.Slice):
-            self.temp_assignments = [
-                ast.Assign(
-                    targets=[ast.Name(id="temp_0", ctx=ast.Store())],
-                    value=node.slice.lower,
-                ),
-                ast.Assign(
-                    targets=[ast.Name(id="temp_1", ctx=ast.Store())],
-                    value=node.slice.upper,
-                ),
-            ]
+            self.queue.append(
+                (
+                    [
+                        ast.Assign(
+                            targets=[ast.Name(id="temp_0", ctx=ast.Store())],
+                            value=node.slice.lower,
+                        ),
+                        ast.Assign(
+                            targets=[ast.Name(id="temp_1", ctx=ast.Store())],
+                            value=node.slice.upper,
+                        ),
+                    ],
+                    node,
+                )
+            )
 
+            # noinspection PyArgumentList
             node.slice = ast.Slice(
                 ast.Name(id="temp_0", ctx=ast.Load()),
                 ast.Name(id="temp_1", ctx=ast.Load()),
             )
+
             return node
         else:
-            queue.append(
+            self.queue.append(
                 (
                     [
                         ast.Assign(
@@ -238,10 +239,22 @@ class ASTRewriter(ast.NodeTransformer):
             node.slice = ast.Name("temp", ctx=ast.Load())
             return node
 
+    def rewrite(self, node):
+        node.parent = None
+        for n in ast.walk(node):
+            for child in ast.iter_child_nodes(n):
+                child.parent = n
+
+        new_node = self.visit(node)
+        for assignments, n in self.queue:
+            ASTRewriter.insert_assignments(assignments, n)
+        ast.fix_missing_locations(new_node)
+        self.queue.clear()
+        return new_node
+
     @staticmethod
     def insert_assignments(assignments, node):
         parent = node.parent
-
         # Walk up to find a parent that has a "body" list containing the node
         while parent:
             for attr in ["body", "orelse", "finalbody"]:
@@ -252,14 +265,6 @@ class ASTRewriter(ast.NodeTransformer):
                         body[index:index] = assignments  # insert before
                         return
             parent = parent.parent
-
-    def flatten(self, stmt: ast.AST) -> list[ast.AST]:
-        self.temp_assignments = []
-
-        new_stmt = self.visit(stmt)
-        all_statements = self.temp_assignments + [new_stmt]
-        all_statements = filter(lambda x: x is not None, all_statements)
-        return list(map(ast.fix_missing_locations, all_statements))
 
 
 def tracer(frame: types.FrameType, event, arg):
@@ -274,12 +279,7 @@ def tracer(frame: types.FrameType, event, arg):
     # filename = frame.f_globals.get("__file__", "<unknown>")
     # ignore files we don't have access to
     # FIXME: this
-    if (
-        filename is None
-        or "3.13" in filename
-        or is_frozen_file(filename)
-        or filename == "tracer"
-    ):
+    if is_lib_file(filename):
         return tracer
 
     path = Path(filename)
@@ -297,8 +297,8 @@ def tracer(frame: types.FrameType, event, arg):
 
         if event == "line":
             t.executed_lines.add(lineno)
-    except Exception:
-        pass
+    except Exception as e:
+        print(e)
 
     return tracer
 
@@ -307,6 +307,7 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python3 -m explotest <filename>")
         sys.exit(1)
+
     target = sys.argv[1]
     sys.argv = sys.argv[1:]
 
@@ -318,27 +319,19 @@ def main():
     runpy.run_path(os.path.abspath(target), run_name="__main__")
     sys.settrace(None)
 
-    for f in tracked_files.values():
-        t = ASTTracer()
-        t.tracked_file = f
-        n = t.visit(f.nodes)
-        n = ast.fix_missing_locations(n)
+    for tf in tracked_files.values():
+        rewriter = ASTRewriter()
+        nodes = rewriter.visit(tf.nodes)
+        nodes = ast.fix_missing_locations(nodes)
 
-        n.parent = None
-        for node in ast.walk(n):
-            for child in ast.iter_child_nodes(node):
-                child.parent = node
+        asttracer = ASTTracer()
+        asttracer.tracked_file = tf
+        nodes = asttracer.visit(nodes)
+        nodes = ast.fix_missing_locations(nodes)
 
-        # now, need to get parents of assign and then we are good!
-        flattener = ASTRewriter()
-        new_statements = []
-        flattener.visit(n)
-        for assignments, node in queue:
-            ASTRewriter.insert_assignments(assignments, node)
         # Create new module with flattened statements
         # new_tree = ast.Module(body=new_statements, type_ignores=[])
-        new_tree = n
-        print(ast.unparse(ast.fix_missing_locations(new_tree)))
+        print(ast.unparse(nodes))
 
 
 if __name__ == "__main__":
