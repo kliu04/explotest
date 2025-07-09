@@ -4,6 +4,10 @@ import inspect
 import os
 from pathlib import Path
 
+import openai
+from .global_state_detector import find_global_vars
+
+from .event_analyzer_for_global_state import EventAnalyzer
 from .helpers import Mode, is_running_under_test, sanitize_name
 from .test_generator import TestGenerator
 
@@ -54,7 +58,21 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
             counter += 1
 
             # finally, call and return the function-under-test
-            return _func(*args, **kwargs)
+            eva = EventAnalyzer(
+                (_func.__name__, str(file_path)),
+                [
+                    external.name
+                    for external in find_global_vars(
+                        ast.parse(open(str(file_path)).read()), _func.__name__
+                    )
+                ],
+                openai.OpenAI(base_url=r"http://localhost:11434/v1", api_key=r"ollama"),
+            )
+            eva.start_tracking()
+            res = _func(*args, **kwargs)
+            print(eva.end_tracking())
+            print("hello")
+            return res
 
         return wrapper
 

@@ -14,25 +14,21 @@ from src.explotest.reconstructor import Reconstructor
 @dataclass
 class External(ABC):
     value: Any
+    name: str
 
     @abstractmethod
     def get_mock(self, reconstructor: Reconstructor) -> list[ast.AST]: ...
 
 
 @dataclass
-class NamedExternal(External, ABC):
-    name: str
-
-
-@dataclass
-class ExternalVariable(NamedExternal):
+class ExternalVariable(External):
     @override
     def get_mock(self, reconstructor: Reconstructor) -> list[ast.AST]:
         return []  # stub
 
 
 @dataclass
-class ExternalProcedure(NamedExternal):
+class ExternalProcedure(External):
     @override
     def get_mock(self, reconstructor: Reconstructor) -> list[ast.AST]:
         return []  # stub
@@ -87,7 +83,7 @@ def find_global_vars(source: ast.Module, proc_name: str) -> list[External]:
 
 def classify_name(
     name: ast.Name | Literal["CONSTANT"], name_idx: int, proc: ast.FunctionDef
-) -> NamedExternal | Literal["LOCAL"]:
+) -> External | Literal["LOCAL"]:
     """
     Given a name in the AST, its line position (for more detail), classify whether it's a:
     - Reference to external variable
@@ -228,4 +224,3 @@ def find_function_def(source: ast.Module, proc_name: str) -> ast.FunctionDef | N
             if proc_name == line.name:
                 return line
     return None
-
