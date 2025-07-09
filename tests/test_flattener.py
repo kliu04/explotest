@@ -2,7 +2,7 @@ import ast
 
 import pytest
 
-from explotest.tracer import ASTFlattener
+from explotest.tracer import ASTRewriter
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def setup_example():
 
 @pytest.mark.parametrize("example_name", ["ex3", "ex4"])
 def test_flattener(example_name, setup_example):
-    flattener = ASTFlattener()
+    flattener = ASTRewriter()
     new_statements = []
     for stmt in setup_example(example_name).body:
         new_statements.extend(flattener.flatten(stmt))
