@@ -321,7 +321,7 @@ def main():
 
     for tf in tracked_files.values():
         rewriter = ASTRewriter()
-        nodes = rewriter.visit(tf.nodes)
+        nodes = rewriter.rewrite(tf.nodes)
         nodes = ast.fix_missing_locations(nodes)
 
         asttracer = ASTTracer()

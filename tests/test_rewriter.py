@@ -18,5 +18,4 @@ def setup_example():
 def test_rewriter(example_name, setup_example):
     rewriter = ASTRewriter()
     result = rewriter.rewrite(setup_example(example_name))
-    print(ast.unparse(result))
     assert ast.dump(result) == ast.dump(setup_example(f"{example_name}r"))
