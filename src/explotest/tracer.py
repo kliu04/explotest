@@ -9,7 +9,7 @@ import os
 import runpy
 import sys
 import types
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -17,8 +17,13 @@ from typing import cast
 @dataclass
 class TrackedFile:
     nodes: ast.Module
-    abstract_line_numbers: set[int] = field(default_factory=set)
-    concrete_line_numbers: list[int] = field(default_factory=set)
+    abstract_line_numbers: set[int]
+    concrete_line_numbers: list[int]
+
+    def __init__(self, nodes):
+        self.nodes = nodes
+        self.abstract_line_numbers = set()
+        self.concrete_line_numbers = list()
 
 
 tracked_files: dict[Path, TrackedFile] = {}
@@ -30,6 +35,9 @@ def is_lib_file(filepath: str) -> bool:
 
 class ASTTracer(ast.NodeTransformer):
     tracked_file: TrackedFile
+
+    def __init__(self, tracked_file: TrackedFile):
+        self.tracked_file = tracked_file
 
     @staticmethod
     def _get_all_linenos(nodes):
@@ -213,7 +221,7 @@ class ASTRewriter(ast.NodeTransformer):
 
         lis = []
         for i, arg in enumerate(node.args):
-            if isinstance(arg, ast.Constant) or isinstance(arg, ast.Name):
+            if ASTRewriter.is_simple(arg):
                 continue
             elif isinstance(arg, ast.Starred):
                 lis.append(
@@ -232,7 +240,7 @@ class ASTRewriter(ast.NodeTransformer):
 
         lis = []
         for i, arg in enumerate(node.args):
-            if isinstance(arg, ast.Constant) or isinstance(arg, ast.Name):
+            if ASTRewriter.is_simple(arg):
                 lis.append(arg)
             elif isinstance(arg, ast.Starred):
                 lis.append(
@@ -247,6 +255,10 @@ class ASTRewriter(ast.NodeTransformer):
 
         return node
 
+    @staticmethod
+    def is_simple(arg):
+        return isinstance(arg, (ast.Constant, ast.Name))
+
     def visit_Subscript(self, node):
         self.generic_visit(node)
 
@@ -256,7 +268,7 @@ class ASTRewriter(ast.NodeTransformer):
             slice_kwargs = {}
 
             if node.slice.lower:
-                if not isinstance(node.slice.lower, (ast.Name, ast.Constant)):
+                if not ASTRewriter.is_simple(node.slice.lower):
                     assignments.append(
                         ast.Assign(
                             targets=[ast.Name(id="temp_0", ctx=ast.Store())],
@@ -268,7 +280,7 @@ class ASTRewriter(ast.NodeTransformer):
                     slice_kwargs["lower"] = node.slice.lower
 
             if node.slice.upper:
-                if not isinstance(node.slice.upper, (ast.Name, ast.Constant)):
+                if not ASTRewriter.is_simple(node.slice.upper):
                     temp_name = "temp_1" if node.slice.lower else "temp_0"
                     assignments.append(
                         ast.Assign(
@@ -285,7 +297,10 @@ class ASTRewriter(ast.NodeTransformer):
                 node.slice = ast.Slice(**slice_kwargs)
 
             return node
+        elif ASTRewriter.is_simple(node.slice):
+            return node
         else:
+
             self.queue.append(
                 (
                     [
@@ -416,8 +431,7 @@ def main():
 
         print(ast.unparse(nodes))
 
-        asttracer = ASTTracer()
-        asttracer.tracked_file = tf
+        asttracer = ASTTracer(tf)
         nodes = asttracer.visit(nodes)
         nodes = ast.fix_missing_locations(nodes)
 

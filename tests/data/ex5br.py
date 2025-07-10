@@ -1,7 +1,5 @@
-temp_0 = 10
-for i in range(temp_0):
+for i in range(10):
     if i % 2 == 0:
-        temp_0 = "I'm even!"
-        print(temp_0)
+        print("I'm even!")
     else:
         pass
