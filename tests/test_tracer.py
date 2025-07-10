@@ -19,6 +19,7 @@ def setup_example():
     [
         ("ex1", {4, 5, 6, 7, 13}),
         ("ex2", {1, 2, 3, 4, 5, 7, 15, 24, 27}),
+        ("ex5b", {1, 2, 3, 4, 5, 7}),
     ],
 )
 def test_tracer(example_name, lines, setup_example):

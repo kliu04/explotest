@@ -4,18 +4,21 @@ Sets up tracer that will track every executed line
 """
 
 import ast
+import bisect
 import os
 import runpy
 import sys
 import types
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 
 @dataclass
 class TrackedFile:
     nodes: ast.Module
-    executed_lines: set[int] = field(default_factory=set)
+    abstract_line_numbers: set[int] = field(default_factory=set)
+    concrete_line_numbers: list[int] = field(default_factory=set)
 
 
 tracked_files: dict[Path, TrackedFile] = {}
@@ -51,12 +54,21 @@ class ASTTracer(ast.NodeTransformer):
 
         body_linenos = self._get_all_linenos(node.body)
         body_was_executed = bool(
-            self.tracked_file.executed_lines.intersection(body_linenos)
+            self.tracked_file.abstract_line_numbers.intersection(body_linenos)
+        )
+        else_linenos = self._get_all_linenos(node.orelse)
+        else_was_executed = bool(
+            self.tracked_file.abstract_line_numbers.intersection(else_linenos)
         )
 
-        if body_was_executed:
+        if body_was_executed and else_was_executed:
+            # both were executed, say in a loop
+            return node
+        elif body_was_executed:
+            # only the body was executed
             return node.body
         else:
+            # only else was executed
             return node.orelse
 
     def visit_For(self, node):
@@ -64,7 +76,9 @@ class ASTTracer(ast.NodeTransformer):
             super().generic_visit(node)
 
             body_linenos = self._get_all_linenos(node.body)
-            body_was_executed = bool(self.tracked_file.executed_lines & body_linenos)
+            body_was_executed = bool(
+                self.tracked_file.abstract_line_numbers & body_linenos
+            )
 
             # condition is false
             if not body_was_executed:
@@ -79,7 +93,7 @@ class ASTTracer(ast.NodeTransformer):
 
         body_linenos = (x for x in range(node.lineno + 1, node.end_lineno + 1))
         body_was_executed = bool(
-            self.tracked_file.executed_lines.intersection(body_linenos)
+            self.tracked_file.abstract_line_numbers.intersection(body_linenos)
         )
         # TODO: change this to just pass ?
         if not body_was_executed:
@@ -90,7 +104,7 @@ class ASTTracer(ast.NodeTransformer):
         super().generic_visit(node)
         handler_linenos = self._get_all_linenos(node.handlers)
         handler_was_executed = bool(
-            self.tracked_file.executed_lines.intersection(handler_linenos)
+            self.tracked_file.abstract_line_numbers.intersection(handler_linenos)
         )
 
         if not handler_was_executed:
@@ -115,7 +129,7 @@ class ASTTracer(ast.NodeTransformer):
         return ast.Try(
             node.body,
             node.handlers,
-            None,
+            [],
             node.finalbody,
         )
 
@@ -123,17 +137,33 @@ class ASTTracer(ast.NodeTransformer):
 class ASTRewriter(ast.NodeTransformer):
 
     queue: list[tuple[list[ast.AST], ast.AST]]
+    tracked_file: TrackedFile
 
-    def __init__(self):
+    def __init__(self, tracked_file: TrackedFile):
         super().__init__()
         self.queue = []
+        self.tracked_file = tracked_file
+        self.tracked_file.concrete_line_numbers = list(
+            tracked_file.abstract_line_numbers
+        )
+        self.tracked_file.concrete_line_numbers.sort()
+
+    def modify_lines(self, pivot: int, num: int):
+        """
+        :param pivot: Increase CLN for linenos after pivot
+        :param num:   Number to increase CLN by
+        :return:      None
+        """
+        idx = bisect.bisect_right(self.tracked_file.concrete_line_numbers, pivot)
+        for i in range(idx, len(self.tracked_file.concrete_line_numbers)):
+            self.tracked_file.concrete_line_numbers[i] += num
 
     def visit_If(self, node):
         self.generic_visit(node)
 
         if not node.orelse:
             node.orelse = [ast.Pass()]
-
+            self.modify_lines(node.end_lineno, 2)
         return node
 
     def visit_Assign(self, node: ast.Assign):
@@ -148,7 +178,9 @@ class ASTRewriter(ast.NodeTransformer):
             and isinstance(node.value, ast.Tuple)
             and len(node.targets[0].elts) == len(node.value.elts)
         ):
+            old_num_linenos = node.end_lineno - node.lineno + 1
             tv = list(zip(node.targets[0].elts, node.value.elts))
+            new_num_linenos = len(tv)
             t, v = tv.pop()
             assign = ast.Assign(targets=[t], value=v)
             assign.parent = node.parent
@@ -159,10 +191,12 @@ class ASTRewriter(ast.NodeTransformer):
                     assign,
                 )
             )
-            # need to fix the way that finding parents works
+            self.modify_lines(node.end_lineno, new_num_linenos - old_num_linenos)
+
             return assign
 
         if isinstance(node.value, ast.IfExp):
+            self.modify_lines(node.end_lineno, 100000)
             return ast.If(
                 node.value.test,
                 [ast.Assign(targets=[node.targets[0]], value=node.value.body)],
@@ -176,26 +210,40 @@ class ASTRewriter(ast.NodeTransformer):
         unpack expressions in call contexts
         """
         self.generic_visit(node)
-        self.queue.append(
-            (
-                [
+
+        lis = []
+        for i, arg in enumerate(node.args):
+            if isinstance(arg, ast.Constant) or isinstance(arg, ast.Name):
+                continue
+            elif isinstance(arg, ast.Starred):
+                lis.append(
                     ast.Assign(
                         targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())],
-                        value=arg.value if isinstance(arg, ast.Starred) else arg,
+                        value=arg.value,
                     )
-                    for i, arg in enumerate(node.args)
-                ],
-                node,
-            )
-        )
-        node.args = [
-            (
-                ast.Starred(value=ast.Name(id=f"temp_{i}", ctx=ast.Load()), ctx=arg.ctx)
-                if isinstance(arg, ast.Starred)
-                else ast.Name(id=f"temp_{i}", ctx=ast.Load())
-            )
-            for i, arg in enumerate(node.args)
-        ]
+                )
+            else:
+                lis.append(
+                    ast.Assign(
+                        targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())], value=arg
+                    )
+                )
+        self.queue.append((lis, node))
+
+        lis = []
+        for i, arg in enumerate(node.args):
+            if isinstance(arg, ast.Constant) or isinstance(arg, ast.Name):
+                lis.append(arg)
+            elif isinstance(arg, ast.Starred):
+                lis.append(
+                    ast.Starred(
+                        value=ast.Name(id=f"temp_{i}", ctx=ast.Load()), ctx=arg.ctx
+                    )
+                )
+            else:
+                lis.append(ast.Name(id=f"temp_{i}", ctx=ast.Load()))
+
+        node.args = lis
 
         return node
 
@@ -203,27 +251,38 @@ class ASTRewriter(ast.NodeTransformer):
         self.generic_visit(node)
 
         if isinstance(node.slice, ast.Slice):
-            self.queue.append(
-                (
-                    [
+
+            assignments = []
+            slice_kwargs = {}
+
+            if node.slice.lower:
+                if not isinstance(node.slice.lower, (ast.Name, ast.Constant)):
+                    assignments.append(
                         ast.Assign(
                             targets=[ast.Name(id="temp_0", ctx=ast.Store())],
                             value=node.slice.lower,
-                        ),
-                        ast.Assign(
-                            targets=[ast.Name(id="temp_1", ctx=ast.Store())],
-                            value=node.slice.upper,
-                        ),
-                    ],
-                    node,
-                )
-            )
+                        )
+                    )
+                    slice_kwargs["lower"] = ast.Name(id="temp_0", ctx=ast.Load())
+                else:
+                    slice_kwargs["lower"] = node.slice.lower
 
-            # noinspection PyArgumentList
-            node.slice = ast.Slice(
-                ast.Name(id="temp_0", ctx=ast.Load()),
-                ast.Name(id="temp_1", ctx=ast.Load()),
-            )
+            if node.slice.upper:
+                if not isinstance(node.slice.upper, (ast.Name, ast.Constant)):
+                    temp_name = "temp_1" if node.slice.lower else "temp_0"
+                    assignments.append(
+                        ast.Assign(
+                            targets=[ast.Name(id=temp_name, ctx=ast.Store())],
+                            value=node.slice.upper,
+                        )
+                    )
+                    slice_kwargs["upper"] = ast.Name(id=temp_name, ctx=ast.Load())
+                else:
+                    slice_kwargs["upper"] = node.slice.upper
+
+            if assignments:
+                self.queue.append((assignments, node))
+                node.slice = ast.Slice(**slice_kwargs)
 
             return node
         else:
@@ -241,7 +300,24 @@ class ASTRewriter(ast.NodeTransformer):
             node.slice = ast.Name("temp", ctx=ast.Load())
             return node
 
-    def rewrite(self, node):
+    def visit_FunctionDef(self, node):
+        self.generic_visit(node)
+
+        # remove docstrings
+        if isinstance(node.body[0], ast.Expr):
+            expr = cast(ast.Expr, node.body[0])
+            if isinstance(expr.value, ast.Constant):
+                potential_docstring = expr.value.value
+                if type(potential_docstring) is str:
+                    node.body = node.body[1:]
+                    if not node.body:
+                        # potentially, a function could only have a docstring and nothing else (god knows why)
+                        node.body = [ast.Pass()]
+
+        return node
+
+    def rewrite(self):
+        node = self.tracked_file.nodes
         node.parent = None
         for n in ast.walk(node):
             for child in ast.iter_child_nodes(n):
@@ -256,18 +332,23 @@ class ASTRewriter(ast.NodeTransformer):
 
     @staticmethod
     def insert_assignments(assignments, node):
+
+        def ancestor_in_body(n, body):
+            if n is None:
+                return None
+            if n in body:
+                return n, body
+            return ancestor_in_body(n.parent, body)
+
         parent = node.parent
         # walk up to find a parent that has a "body" list containing the node
+
         while parent:
             for attr in ["body", "orelse", "finalbody"]:
                 if hasattr(parent, attr):
                     body = getattr(parent, attr)
-                    if isinstance(body, list) and (node.parent in body):
-                        index = body.index(node.parent)
-                        body[index:index] = assignments  # insert before
-                        return
-                    if isinstance(body, list) and (node in body):
-                        index = body.index(node)
+                    if isinstance(body, list) and (t := ancestor_in_body(node, body)):
+                        index = t[1].index(t[0])
                         body[index:index] = assignments  # insert before
                         return
             parent = parent.parent
@@ -304,7 +385,8 @@ def tracer(frame: types.FrameType, event, arg):
             tracked_files[path] = t
 
         if event == "line":
-            t.executed_lines.add(lineno)
+            t.abstract_line_numbers.add(lineno)
+        # t.executed_lines.add(lineno)
     except Exception as e:
         print(e)
 
@@ -328,14 +410,18 @@ def main():
     sys.settrace(None)
 
     for tf in tracked_files.values():
-        rewriter = ASTRewriter()
-        nodes = rewriter.rewrite(tf.nodes)
+        rewriter = ASTRewriter(tf)
+        nodes = rewriter.rewrite()
         nodes = ast.fix_missing_locations(nodes)
+
+        print(ast.unparse(nodes))
 
         asttracer = ASTTracer()
         asttracer.tracked_file = tf
         nodes = asttracer.visit(nodes)
         nodes = ast.fix_missing_locations(nodes)
+
+        print(tf.abstract_line_numbers)
 
         # Create new module with flattened statements
         # new_tree = ast.Module(body=new_statements, type_ignores=[])
