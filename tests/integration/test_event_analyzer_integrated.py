@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 import openai
@@ -20,6 +21,7 @@ def oai() -> openai.OpenAI:
 @pytest.fixture
 def analyzer(oai: openai.OpenAI) -> eva.EventAnalyzer:
     p = pathlib.Path("../../test_data/test_event_analyzer/simpleflask.py")
+    print(os.getcwd())
     sample_file_flask = p.read_text()
     return eva.EventAnalyzer(
         proc_filter=("hello_world", "./test_data/test_event_analyzer/simpleflask.py"),

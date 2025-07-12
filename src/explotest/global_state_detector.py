@@ -19,7 +19,6 @@ class External(ABC):
     @abstractmethod
     def get_mock(self, reconstructor: Reconstructor) -> list[ast.AST]: ...
 
-
 @dataclass
 class ExternalVariable(External):
     @override
@@ -80,19 +79,19 @@ def find_global_vars(source: ast.Module, proc_name: str) -> list[External]:
 
     return result
 
-
-def classify_name(
-    name: ast.Name | Literal["CONSTANT"], name_idx: int, proc: ast.FunctionDef
-) -> External | Literal["LOCAL"]:
-    """
-    Given a name in the AST, its line position (for more detail), classify whether it's a:
-    - Reference to external variable
-    - External procedure call
-    - Call to `open`.
-    - The string "LOCAL" if the name is defined within the function.
-    """
-    if name == "CONSTANT":
-        return
+# 
+# def classify_name(
+#     name: ast.Name | Literal["CONSTANT"], name_idx: int, proc: ast.FunctionDef
+# ) -> External | Literal["LOCAL"]:
+#     """
+#     Given a name in the AST, its line position (for more detail), classify whether it's a:
+#     - Reference to external variable
+#     - External procedure call
+#     - Call to `open`.
+#     - The string "LOCAL" if the name is defined within the function.
+#     """
+#     if name == "CONSTANT":
+#         return
 
 
 def unwrap_attribute(
