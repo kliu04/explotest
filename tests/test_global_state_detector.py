@@ -25,7 +25,7 @@ src1_expected = [
     )
 ]
 
-src2_expected = [CallToOpen(value="meowmeow2")]
+src2_expected = [CallToOpen(value="meowmeow2", name="open")]
 
 src3_expected = [
     ExternalProcedure(value=None, name="flask.globals.request.args.target()"),
