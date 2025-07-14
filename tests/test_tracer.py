@@ -2,7 +2,7 @@ import ast
 
 import pytest
 
-from explotest.tracer import ASTTracer, TrackedFile
+from explotest.tracer import TFTracer, TrackedFile
 
 
 @pytest.fixture
@@ -23,8 +23,8 @@ def setup_example():
     ],
 )
 def test_tracer(example_name, lines, setup_example):
-    file = TrackedFile(setup_example(example_name), lines)
-    tracer = ASTTracer()
-    tracer.tracked_file = file
+    file = TrackedFile(setup_example(example_name))
+    file.abstract_line_numbers = lines
+    tracer = TFTracer(file)
     result = tracer.visit(file.nodes)
     assert ast.dump(result) == ast.dump(setup_example(f"{example_name}r"))

@@ -8,6 +8,7 @@ import bisect
 import os
 import runpy
 import sys
+import tokenize
 import types
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,11 +19,13 @@ from typing import cast
 class TrackedFile:
     nodes: ast.Module
     abstract_line_numbers: set[int]
+    line_comments: list[int]
     concrete_line_numbers: list[int]
 
     def __init__(self, nodes):
         self.nodes = nodes
         self.abstract_line_numbers = set()
+        self.line_comments = list()
         self.concrete_line_numbers = list()
 
 
@@ -33,14 +36,29 @@ def is_lib_file(filepath: str) -> bool:
     return any(substring in filepath for substring in ("3.13", ".venv", "<frozen"))
 
 
-class ASTTracer(ast.NodeTransformer):
+class TFTransformer(ast.NodeTransformer):
     tracked_file: TrackedFile
 
     def __init__(self, tracked_file: TrackedFile):
+        super().__init__()
         self.tracked_file = tracked_file
 
+    def modify_lines(self, pivot: int, num: int):
+        """
+        :param pivot: Increase CLN for linenos after pivot
+        :param num:   Number to increase CLN by
+        :return:      None
+        """
+        idx = bisect.bisect_right(
+            sorted(list(self.tracked_file.abstract_line_numbers)), pivot
+        )
+        for i in range(idx, len(self.tracked_file.concrete_line_numbers)):
+            self.tracked_file.concrete_line_numbers[i] += num
+
+
+class TFTracer(TFTransformer):
     @staticmethod
-    def _get_all_linenos(nodes):
+    def _get_all_linenos(nodes: list[ast.AST]) -> set[int]:
         """Recursively collect all line numbers from a list of AST nodes"""
 
         # possible since the child nodes can be pruned, leaving an empty body
@@ -142,29 +160,22 @@ class ASTTracer(ast.NodeTransformer):
         )
 
 
-class ASTRewriter(ast.NodeTransformer):
+class TFRewriter(TFTransformer):
 
     queue: list[tuple[list[ast.AST], ast.AST]]
-    tracked_file: TrackedFile
 
     def __init__(self, tracked_file: TrackedFile):
-        super().__init__()
+        super().__init__(tracked_file)
         self.queue = []
-        self.tracked_file = tracked_file
         self.tracked_file.concrete_line_numbers = list(
             tracked_file.abstract_line_numbers
         )
         self.tracked_file.concrete_line_numbers.sort()
 
-    def modify_lines(self, pivot: int, num: int):
-        """
-        :param pivot: Increase CLN for linenos after pivot
-        :param num:   Number to increase CLN by
-        :return:      None
-        """
-        idx = bisect.bisect_right(self.tracked_file.concrete_line_numbers, pivot)
-        for i in range(idx, len(self.tracked_file.concrete_line_numbers)):
-            self.tracked_file.concrete_line_numbers[i] += num
+    def adjust_comments(self):
+        for i, lineno in enumerate(self.tracked_file.concrete_line_numbers):
+            count = bisect.bisect_left(self.tracked_file.line_comments, lineno)
+            self.tracked_file.concrete_line_numbers[i] -= count
 
     def visit_If(self, node):
         self.generic_visit(node)
@@ -187,15 +198,18 @@ class ASTRewriter(ast.NodeTransformer):
             and len(node.targets[0].elts) == len(node.value.elts)
         ):
             old_num_linenos = node.end_lineno - node.lineno + 1
-            tv = list(zip(node.targets[0].elts, node.value.elts))
-            new_num_linenos = len(tv)
-            t, v = tv.pop()
-            assign = ast.Assign(targets=[t], value=v)
+            new_variables = list(zip(node.targets[0].elts, node.value.elts))
+            new_num_linenos = len(new_variables)
+            target, value = new_variables.pop()
+            assign = ast.Assign(targets=[target], value=value)
             assign.parent = node.parent
             # generate one assignment per target-value pair
             self.queue.append(
-                (
-                    [ast.Assign(targets=[target], value=value) for target, value in tv],
+                (  # type: ignore
+                    [
+                        ast.Assign(targets=[target], value=value)
+                        for target, value in new_variables
+                    ],
                     assign,
                 )
             )
@@ -204,7 +218,7 @@ class ASTRewriter(ast.NodeTransformer):
             return assign
 
         if isinstance(node.value, ast.IfExp):
-            self.modify_lines(node.end_lineno, 100000)
+            self.modify_lines(node.end_lineno, 3)  # new lines: if, else, 2nd assign
             return ast.If(
                 node.value.test,
                 [ast.Assign(targets=[node.targets[0]], value=node.value.body)],
@@ -221,7 +235,7 @@ class ASTRewriter(ast.NodeTransformer):
 
         lis = []
         for i, arg in enumerate(node.args):
-            if ASTRewriter.is_simple(arg):
+            if TFRewriter.is_simple(arg):
                 continue
             elif isinstance(arg, ast.Starred):
                 lis.append(
@@ -239,8 +253,9 @@ class ASTRewriter(ast.NodeTransformer):
         self.queue.append((lis, node))
 
         lis = []
+        count = 0
         for i, arg in enumerate(node.args):
-            if ASTRewriter.is_simple(arg):
+            if TFRewriter.is_simple(arg):
                 lis.append(arg)
             elif isinstance(arg, ast.Starred):
                 lis.append(
@@ -248,10 +263,14 @@ class ASTRewriter(ast.NodeTransformer):
                         value=ast.Name(id=f"temp_{i}", ctx=ast.Load()), ctx=arg.ctx
                     )
                 )
+                count += 1
             else:
                 lis.append(ast.Name(id=f"temp_{i}", ctx=ast.Load()))
+                count += 1
 
         node.args = lis
+
+        self.modify_lines(node.end_lineno, count)
 
         return node
 
@@ -268,7 +287,7 @@ class ASTRewriter(ast.NodeTransformer):
             slice_kwargs = {}
 
             if node.slice.lower:
-                if not ASTRewriter.is_simple(node.slice.lower):
+                if not TFRewriter.is_simple(node.slice.lower):
                     assignments.append(
                         ast.Assign(
                             targets=[ast.Name(id="temp_0", ctx=ast.Store())],
@@ -276,11 +295,12 @@ class ASTRewriter(ast.NodeTransformer):
                         )
                     )
                     slice_kwargs["lower"] = ast.Name(id="temp_0", ctx=ast.Load())
+                    self.modify_lines(node.end_lineno, 1)
                 else:
                     slice_kwargs["lower"] = node.slice.lower
 
             if node.slice.upper:
-                if not ASTRewriter.is_simple(node.slice.upper):
+                if not TFRewriter.is_simple(node.slice.upper):
                     temp_name = "temp_1" if node.slice.lower else "temp_0"
                     assignments.append(
                         ast.Assign(
@@ -289,6 +309,7 @@ class ASTRewriter(ast.NodeTransformer):
                         )
                     )
                     slice_kwargs["upper"] = ast.Name(id=temp_name, ctx=ast.Load())
+                    self.modify_lines(node.end_lineno, 1)
                 else:
                     slice_kwargs["upper"] = node.slice.upper
 
@@ -297,12 +318,11 @@ class ASTRewriter(ast.NodeTransformer):
                 node.slice = ast.Slice(**slice_kwargs)
 
             return node
-        elif ASTRewriter.is_simple(node.slice):
+        elif TFRewriter.is_simple(node.slice):
             return node
         else:
-
             self.queue.append(
-                (
+                (  # type: ignore
                     [
                         ast.Assign(
                             targets=[ast.Name(id="temp", ctx=ast.Store())],
@@ -313,6 +333,7 @@ class ASTRewriter(ast.NodeTransformer):
                 )
             )
             node.slice = ast.Name("temp", ctx=ast.Load())
+            self.modify_lines(node.end_lineno, 1)
             return node
 
     def visit_FunctionDef(self, node):
@@ -324,10 +345,14 @@ class ASTRewriter(ast.NodeTransformer):
             if isinstance(expr.value, ast.Constant):
                 potential_docstring = expr.value.value
                 if type(potential_docstring) is str:
+                    docstring_length = expr.value.end_lineno - expr.value.lineno
                     node.body = node.body[1:]
                     if not node.body:
                         # potentially, a function could only have a docstring and nothing else (god knows why)
                         node.body = [ast.Pass()]
+                        self.modify_lines(node.end_lineno, 1 - docstring_length)
+                    else:
+                        self.modify_lines(node.end_lineno, -docstring_length)
 
         return node
 
@@ -338,9 +363,11 @@ class ASTRewriter(ast.NodeTransformer):
             for child in ast.iter_child_nodes(n):
                 child.parent = n
 
+        self.adjust_comments()
+
         new_node = self.visit(node)
         for assignments, n in self.queue:
-            ASTRewriter.insert_assignments(assignments, n)
+            TFRewriter.insert_assignments(assignments, n)
         ast.fix_missing_locations(new_node)
         self.queue.clear()
         return new_node
@@ -382,7 +409,6 @@ def tracer(frame: types.FrameType, event, arg):
     filename = frame.f_code.co_filename
     # filename = frame.f_globals.get("__file__", "<unknown>")
     # ignore files we don't have access to
-    # FIXME: this
     if is_lib_file(filename):
         return tracer
 
@@ -397,6 +423,25 @@ def tracer(frame: types.FrameType, event, arg):
         else:
             tree = ast.parse(source, filename=path.name)
             t = TrackedFile(tree)
+
+            with (
+                open(path, "r", encoding="utf-8") as f_text,
+                open(path, "rb") as f_bytes,
+            ):
+                source_lines = f_text.readlines()
+                tokens = tokenize.tokenize(f_bytes.readline)
+
+                for token in tokens:
+                    if token.type == tokenize.COMMENT:
+                        lineno = token.start[0]
+                        line = source_lines[lineno - 1]
+                        before_comment = line[: token.start[1]]
+                        if (
+                            before_comment.strip() == ""
+                        ):  # only whitespace before comment
+                            t.line_comments.append(lineno)
+                            print(f"Full-line comment at line {lineno}: {token.string}")
+            t.line_comments.sort()
             tracked_files[path] = t
 
         if event == "line":
@@ -425,13 +470,14 @@ def main():
     sys.settrace(None)
 
     for tf in tracked_files.values():
-        rewriter = ASTRewriter(tf)
+        print(tf.abstract_line_numbers)
+        rewriter = TFRewriter(tf)
         nodes = rewriter.rewrite()
         nodes = ast.fix_missing_locations(nodes)
 
         print(ast.unparse(nodes))
 
-        asttracer = ASTTracer(tf)
+        asttracer = TFTracer(tf)
         nodes = asttracer.visit(nodes)
         nodes = ast.fix_missing_locations(nodes)
 
