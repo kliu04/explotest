@@ -2,7 +2,7 @@ import ast
 
 import pytest
 
-from explotest.tracer import TFPruner, TrackedFile
+from explotest.__main__ import TFPruner, TrackedFile
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def setup_example():
 )
 def test_tracer(example_name, lines, setup_example):
     file = TrackedFile(setup_example(example_name))
-    file.abstract_line_numbers = lines
+    file.traced_line_numbers = lines
     tracer = TFPruner(file)
     result = tracer.visit(file.nodes)
     assert ast.dump(result) == ast.dump(setup_example(f"{example_name}r"))
