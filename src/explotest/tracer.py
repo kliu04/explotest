@@ -49,14 +49,19 @@ class TFTransformer(ast.NodeTransformer):
         :param num:   Number to increase CLN by
         :return:      None
         """
-        idx = bisect.bisect_right(
-            sorted(list(self.tracked_file.abstract_line_numbers)), pivot
-        )
+        # idx = bisect.bisect_right(
+        #     sorted(list(self.tracked_file.abstract_line_numbers)), pivot
+        # )
+        idx = None
+        for i, v in enumerate(sorted(list(self.tracked_file.abstract_line_numbers))):
+            if v >= pivot:
+                idx = i
+                break
         for i in range(idx, len(self.tracked_file.concrete_line_numbers)):
             self.tracked_file.concrete_line_numbers[i] += num
 
 
-class TFTracer(TFTransformer):
+class TFPruner(TFTransformer):
     @staticmethod
     def _get_all_linenos(nodes: list[ast.AST]) -> set[int]:
         """Recursively collect all line numbers from a list of AST nodes"""
@@ -182,7 +187,7 @@ class TFRewriter(TFTransformer):
 
         if not node.orelse:
             node.orelse = [ast.Pass()]
-            self.modify_lines(node.end_lineno, 2)
+            self.modify_lines(node.end_lineno + 1, 2)
         return node
 
     def visit_Assign(self, node: ast.Assign):
@@ -200,22 +205,25 @@ class TFRewriter(TFTransformer):
             old_num_linenos = node.end_lineno - node.lineno + 1
             new_variables = list(zip(node.targets[0].elts, node.value.elts))
             new_num_linenos = len(new_variables)
-            target, value = new_variables.pop()
-            assign = ast.Assign(targets=[target], value=value)
-            assign.parent = node.parent
+            # target, value = new_variables.pop()
+            # assign = ast.Assign(targets=[target], value=value)
+            # assign.parent = node.parent
             # generate one assignment per target-value pair
-            self.queue.append(
-                (  # type: ignore
-                    [
-                        ast.Assign(targets=[target], value=value)
-                        for target, value in new_variables
-                    ],
-                    assign,
-                )
-            )
+            # self.queue.append(
+            #     (  # type: ignore
+            #         [
+            #             ast.Assign(targets=[target], value=value)
+            #             for target, value in new_variables
+            #         ],
+            #         assign,
+            #     )
+            # )
             self.modify_lines(node.end_lineno, new_num_linenos - old_num_linenos)
 
-            return assign
+            return [
+                ast.Assign(targets=[target], value=value)
+                for target, value in new_variables
+            ]
 
         if isinstance(node.value, ast.IfExp):
             self.modify_lines(node.end_lineno, 3)  # new lines: if, else, 2nd assign
@@ -269,7 +277,7 @@ class TFRewriter(TFTransformer):
                 count += 1
 
         node.args = lis
-
+        print(node.end_lineno, count)
         self.modify_lines(node.end_lineno, count)
 
         return node
@@ -360,6 +368,12 @@ class TFRewriter(TFTransformer):
         node = self.tracked_file.nodes
         node.parent = None
         for n in ast.walk(node):
+            # mark nodes that are ran
+            if hasattr(n, "lineno"):
+                if n.lineno in self.tracked_file.abstract_line_numbers:
+                    n.executed = True
+                else:
+                    n.executed = False
             for child in ast.iter_child_nodes(n):
                 child.parent = n
 
@@ -470,18 +484,24 @@ def main():
     sys.settrace(None)
 
     for tf in tracked_files.values():
-        print(tf.abstract_line_numbers)
         rewriter = TFRewriter(tf)
         nodes = rewriter.rewrite()
         nodes = ast.fix_missing_locations(nodes)
 
+        # s = set()
+        #
+        # for node in ast.walk(nodes):
+        #     if hasattr(node, "foo"):
+        #         if node.foo:
+        #             s.add(node.lineno)
+        print(tf.abstract_line_numbers)
+        print(tf.concrete_line_numbers)
+
         print(ast.unparse(nodes))
 
-        asttracer = TFTracer(tf)
+        asttracer = TFPruner(tf)
         nodes = asttracer.visit(nodes)
         nodes = ast.fix_missing_locations(nodes)
-
-        print(tf.abstract_line_numbers)
 
         # Create new module with flattened statements
         # new_tree = ast.Module(body=new_statements, type_ignores=[])

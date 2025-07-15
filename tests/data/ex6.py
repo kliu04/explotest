@@ -16,7 +16,6 @@ def foo(a, b, c, d):
 def bar(a, b):
     pass
 
-
 foo(1 + 1, 2 + 2, 3 + 3, 4 + 4)
 foo(1 + 1, 2, 3 + 3, 4)
 bar(1 + 1, 2 + 2)
