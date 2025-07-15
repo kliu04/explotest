@@ -30,6 +30,15 @@ def analyzer(oai: openai.OpenAI) -> eva.EventAnalyzer:
             for ext in gsd.find_global_vars(ast.parse(sample_file_flask), "hello_world")
         ],
         oai=oai,
+        fn_def=ast.parse(
+            """
+def hello_world():
+    if request.method == "GET":
+        return "<p>Hello, World!</p>"
+    else:
+        return "<p>Goodbye, World!</p>"
+        """
+        ).body[0],
     )
 
 

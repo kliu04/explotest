@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from explotest import explore
+
 
 def write_to_file(data: str) -> None:
     """
@@ -17,6 +19,7 @@ def write_to_file(data: str) -> None:
         f.write(data)
 
 
+@explore
 def target() -> str:
     """
     Returns file.txt as a string, with every character incremented by 1 in its value.

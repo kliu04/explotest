@@ -1,12 +1,20 @@
+import ast
+
+import openai
+import pytest
+
+from llm_analysis_pass import LLMAnalyzer
+
+SAMPLE_SRC = """
 from pathlib import Path
 
 
 def write_to_file(data: str) -> None:
-    """
+    \"""
     Writes `data` to a file called to file.txt
 
     file.txt must exist, if it does not, a `FileNotFoundError` is raised.
-    """
+    \"""
     target = Path(r"file.txt")
     if not target.is_file():
         raise FileNotFoundError(
@@ -18,9 +26,9 @@ def write_to_file(data: str) -> None:
 
 
 def target() -> str:
-    """
+    \"""
     Returns file.txt as a string, with every character incremented by 1 in its value.
-    """
+    \"""
     target = Path(r"file.txt")
     if not target.is_file():
         raise FileNotFoundError(
@@ -35,3 +43,19 @@ if __name__ == "__main__":
     write_to_file("meow")
     write_to_file("meow2")
     print(target())
+
+"""
+
+
+@pytest.fixture
+def llm_analyzer() -> LLMAnalyzer:
+    return LLMAnalyzer(
+        llm=openai.OpenAI(
+            client=OpenAI(
+                base_url="http://localhost:11434/v1",
+                api_key="ollama",  # required, but unused
+            )
+        ),
+        fn_def=ast.parse(SAMPLE_SRC).body[3],
+        globals=[],
+    )
