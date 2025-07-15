@@ -6,12 +6,15 @@ Pass 2: Use an LLM to determine whether the external variable should be mocked
 Pass 3: Capture and store the value, creating mocks.
 """
 
+import ast
 import inspect
 from sys import monitoring as sm
 from types import CodeType
 from typing import Any, Tuple
 
 import openai
+
+from llm_analysis_pass import LLMAnalyzer
 
 
 class EventAnalyzer:
@@ -20,6 +23,7 @@ class EventAnalyzer:
     proc_globals: list[object] = []
     target_names_in_proc: list[str]
     globals_by_frame_id: dict[int, dict[str, object]]
+    fn_def: ast.FunctionDef
     TOOL_ID = 3
     TOOL_NAME = "explotest_mock_tracker"
     llm: openai.OpenAI
@@ -28,6 +32,7 @@ class EventAnalyzer:
         self,
         proc_filter: tuple[str, str],
         capture_names_in_proc: list[str],
+        fn_def: ast.FunctionDef,
         oai: openai.OpenAI,
     ):
         """
@@ -42,8 +47,8 @@ class EventAnalyzer:
         self.proc_filter = proc_filter
         self.return_data = []
         self.line_data = []
-
         self.llm = oai
+        self.fn_def = fn_def
 
     def start_tracking(self):
         """
@@ -67,24 +72,27 @@ class EventAnalyzer:
     def return_handler(
         self, code: CodeType, instruction_offset: int, retval: object
     ) -> Any:
-        # print(code.co_qualname)
+        # print(self.proc_filter[0])
         if (
-            code.co_qualname
-            == self.proc_filter[0]
-            # and code.co_filename == self.proc_filter[1]
+            code.co_qualname == self.proc_filter[0]
+            and code.co_filename == self.proc_filter[1]
         ):
+            # print(self.proc_filter[1], code.co_filename)
             current_frame = inspect.currentframe()
             assert current_frame is not None
             parent_frame = current_frame.f_back
             assert parent_frame is not None
             self.globals_by_frame_id[id(parent_frame)] = {}
             for name, value in parent_frame.f_globals.items():
+                # print(f"name: {name}, value: {value}")
+
                 if (
                     name not in self.globals_by_frame_id[id(parent_frame)]
                     and name in self.target_names_in_proc
                 ):
+                    # print(f"name: {name}, value: {value}")
                     self.globals_by_frame_id[id(parent_frame)][name] = value
-            breakpoint()
+                # breakpoint()
             self.return_data.append((code, instruction_offset, retval))
 
         return None
@@ -99,4 +107,8 @@ class EventAnalyzer:
         # for code, lineno in self.line_data:
         #     print(code, lineno)
         sm.free_tool_id(self.TOOL_ID)
-        return self.return_data
+        # return self.globals_by_frame_id
+        for frame_id, var_map in self.globals_by_frame_id.items():
+            llm_analysis = LLMAnalyzer(self.llm, self.fn_def, var_map)
+            print(f"============ FRAME_ID: {frame_id} ============")
+            return llm_analysis.filter_mocks()

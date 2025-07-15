@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 
 import openai
+from dotenv import load_dotenv
+
 from .global_state_detector import find_global_vars
 
 from .event_analyzer_for_global_state import EventAnalyzer
@@ -56,8 +58,15 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
                 f.write(ast.unparse(tg.generate(bound_args.arguments).ast_node))
 
             counter += 1
+            func_source = inspect.getsource(_func)
+            function_ast_node = None
+            for node in ast.walk(ast.parse(func_source)):
+                if isinstance(node, ast.FunctionDef) and node.name == _func.__name__:
+                    function_ast_node = node
+                    break
 
             # finally, call and return the function-under-test
+            load_dotenv()
             eva = EventAnalyzer(
                 (_func.__name__, str(file_path)),
                 [
@@ -66,12 +75,15 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
                         ast.parse(open(str(file_path)).read()), _func.__name__
                     )
                 ],
-                openai.OpenAI(base_url=r"http://localhost:11434/v1", api_key=r"ollama"),
+                function_ast_node,
+                openai.OpenAI(
+                    base_url=r"https://generativelanguage.googleapis.com/v1beta/openai/",
+                    api_key=os.getenv("GEMINI_KEY"),
+                ),
             )
             eva.start_tracking()
             res = _func(*args, **kwargs)
-            print(eva.end_tracking())
-            print("hello")
+            print(f"LLM Result: {eva.end_tracking()}")
             return res
 
         return wrapper
