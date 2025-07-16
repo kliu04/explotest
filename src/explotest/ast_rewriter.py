@@ -40,10 +40,6 @@ class ASTRewriter(ast.NodeTransformer):
             body = [ast.Assign(targets=[node.targets[0]], value=node.value.body)]
             orelse = [ast.Assign(targets=[node.targets[0]], value=node.value.orelse)]
 
-            # don't know which is executed
-            body.executed = getattr(node, "executed", False)
-            orelse.executed = getattr(node, "executed", False)
-
             new_node = ast.If(
                 node.value.test,
                 body,
