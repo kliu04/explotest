@@ -5,7 +5,7 @@ import importlib.util
 from pathlib import Path
 
 from explotest.ast_file import ASTFile
-from explotest.ast_rewriter import ASTRewriter
+from explotest.ast_rewriter import ASTRewriterA
 
 tracked_files: dict[Path, ASTFile] = {}
 
@@ -27,9 +27,13 @@ class Loader(importlib.abc.Loader):
         else:
             tree = ast.parse(src, module.__file__, "exec")
             ast_file = ASTFile(path.name, tree)
-            trans = ASTRewriter(ast_file)
+            trans = ASTRewriterA(ast_file)
             patched_tree = trans.rewrite()
+            # print(ast.dump(patched_tree, indent=4, include_attributes=True))
+            # print(ast.dump(ast.parse(ast.unparse(patched_tree)), indent=4, include_attributes=True))
+            patched_tree = ast.parse(ast.unparse(patched_tree))
             ast.fix_missing_locations(patched_tree)
+            ast_file.nodes = patched_tree
             tracked_files[path] = ast_file
 
         code = compile(patched_tree, module.__file__, "exec")

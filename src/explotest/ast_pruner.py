@@ -1,14 +1,7 @@
 import ast
 
-from explotest.ast_file import ASTFile
-
 
 class ASTPruner(ast.NodeTransformer):
-
-    ast_file: ASTFile
-
-    def __init__(self, ast_file):
-        self.ast_file = ast_file
 
     @staticmethod
     def check_executed(nodes: list[ast.AST]) -> bool:
@@ -28,6 +21,7 @@ class ASTPruner(ast.NodeTransformer):
 
         body_was_executed = ASTPruner.check_executed(node.body)
         else_was_executed = ASTPruner.check_executed(node.orelse)
+        print(ast.dump(node, include_attributes=True), "!!!")
 
         if (body_was_executed and else_was_executed) or (
             not body_was_executed and not else_was_executed

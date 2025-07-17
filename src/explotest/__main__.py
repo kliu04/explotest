@@ -12,7 +12,7 @@ from pathlib import Path
 
 from explotest.ast_importer import Finder, tracked_files
 from explotest.ast_pruner import ASTPruner
-from explotest.ast_rewriter import ASTRewriter
+from explotest.ast_rewriter import ASTRewriterB
 
 
 def is_lib_file(filepath: str) -> bool:
@@ -50,12 +50,6 @@ def tracer(frame: types.FrameType, event, arg):
     return tracer
 
 
-class Transformer(ast.NodeTransformer):
-
-    def visit_Assign(self, node):
-        return [node, ast.Pass()]
-
-
 def load_code(root_path: Path, module_name: str):
     """Load user code, patch function calls."""
     finder = Finder(root_path)
@@ -86,12 +80,22 @@ def main():
     sys.settrace(None)
 
     for tf in tracked_files.values():
-        rewriter = ASTRewriter(tf)
-        nodes = rewriter.rewrite()
-        nodes = ast.fix_missing_locations(nodes)
+        print(tf.traced_line_numbers)
+        pruner = ASTPruner()
+        nodes = tf.nodes
+        for node in ast.walk(nodes):
+            if hasattr(node, "lineno"):
+                if node.lineno in tf.traced_line_numbers:
+                    node.executed = True
+                else:
+                    node.executed = False
 
-        pruner = ASTPruner(tf)
-        nodes = pruner.visit(nodes)
+        nodes = pruner.visit(tf.nodes)
+        nodes = ast.fix_missing_locations(nodes)
+        tf.nodes = nodes
+
+        rewriter = ASTRewriterB(tf)
+        nodes = rewriter.rewrite()
         nodes = ast.fix_missing_locations(nodes)
 
         # Create new module with flattened statements

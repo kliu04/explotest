@@ -1,4 +1,5 @@
 import ast
+import copy
 from typing import cast
 
 from explotest.ast_file import ASTFile
@@ -13,6 +14,86 @@ class ASTRewriter(ast.NodeTransformer):
         self.queue = []
         self.ast_file = ast_file
 
+    def rewrite(self):
+        node = self.ast_file.nodes
+        node.parent = None
+        for n in ast.walk(node):
+            # mark nodes that are ran
+            for child in ast.iter_child_nodes(n):
+                child.parent = n
+
+        new_node = self.visit(node)
+        for assignments, n in self.queue:
+            ASTRewriter.insert_assignments(assignments, n)
+        ast.fix_missing_locations(new_node)
+        self.queue.clear()
+        return new_node
+
+    @staticmethod
+    def is_simple(arg):
+        return isinstance(arg, (ast.Constant, ast.Name))
+
+    @staticmethod
+    def ancestor_in_body(n, body):
+
+        if n is None:
+            return None
+        if n in body:
+            return n, body
+        return ASTRewriter.ancestor_in_body(n.parent, body)
+
+    @staticmethod
+    def insert_assignments(assignments, node):
+
+        parent = node.parent
+        # walk up to find a parent that has a "body" list containing the node
+
+        while parent:
+            for attr in ["body", "orelse", "finalbody"]:
+                if hasattr(parent, attr):
+                    body = getattr(parent, attr)
+                    if isinstance(body, list) and (
+                        t := ASTRewriter.ancestor_in_body(node, body)
+                    ):
+                        index = t[1].index(t[0])
+                        body[index:index] = assignments  # insert before
+                        return
+            parent = parent.parent
+
+        raise RuntimeError("Cannot find place to insert assignments.")
+
+
+class ASTRewriterA(ASTRewriter):
+
+    def visit_Assign(self, node):
+        self.generic_visit(node)
+
+        if isinstance(node.value, ast.IfExp):
+            body = ast.Assign(
+                targets=[copy.copy(node.targets[0])], value=node.value.body
+            )
+            orelse = ast.Assign(
+                targets=[copy.copy(node.targets[0])], value=node.value.orelse
+            )
+
+            new_node = ast.If(
+                node.value.test,
+                [body],
+                [orelse],
+            )
+            new_node.end_lineno = node.lineno + 3
+            return new_node
+        return node
+
+    def visit_If(self, node):
+        self.generic_visit(node)
+        if not node.orelse:
+            new_node = ast.Pass()
+            node.orelse = [new_node]
+        return node
+
+
+class ASTRewriterB(ASTRewriter):
     def visit_Assign(self, node: ast.Assign):
         """
         unpacks tuple assignments and ifexp assignments
@@ -35,18 +116,6 @@ class ASTRewriter(ast.NodeTransformer):
                     node.executed = True
 
             return new_nodes
-
-        if isinstance(node.value, ast.IfExp):
-            body = [ast.Assign(targets=[node.targets[0]], value=node.value.body)]
-            orelse = [ast.Assign(targets=[node.targets[0]], value=node.value.orelse)]
-
-            new_node = ast.If(
-                node.value.test,
-                body,
-                orelse,
-            )
-            new_node.executed = getattr(node, "executed", False)
-            return new_node
 
         return node
 
@@ -90,10 +159,6 @@ class ASTRewriter(ast.NodeTransformer):
 
         node.args = lis
         return node
-
-    @staticmethod
-    def is_simple(arg):
-        return isinstance(arg, (ast.Constant, ast.Name))
 
     def visit_Subscript(self, node):
         self.generic_visit(node)
@@ -167,48 +232,3 @@ class ASTRewriter(ast.NodeTransformer):
                         node.body = [ast.Pass()]
 
         return node
-
-    def rewrite(self):
-        node = self.ast_file.nodes
-        node.parent = None
-        for n in ast.walk(node):
-            # mark nodes that are ran
-            if hasattr(n, "lineno"):
-                if n.lineno in self.ast_file.traced_line_numbers:
-                    n.executed = True
-                else:
-                    n.executed = False
-            for child in ast.iter_child_nodes(n):
-                child.parent = n
-
-        new_node = self.visit(node)
-        for assignments, n in self.queue:
-            ASTRewriter.insert_assignments(assignments, n)
-        ast.fix_missing_locations(new_node)
-        self.queue.clear()
-        return new_node
-
-    @staticmethod
-    def insert_assignments(assignments, node):
-
-        def ancestor_in_body(n, body):
-            if n is None:
-                return None
-            if n in body:
-                return n, body
-            return ancestor_in_body(n.parent, body)
-
-        parent = node.parent
-        # walk up to find a parent that has a "body" list containing the node
-
-        while parent:
-            for attr in ["body", "orelse", "finalbody"]:
-                if hasattr(parent, attr):
-                    body = getattr(parent, attr)
-                    if isinstance(body, list) and (t := ancestor_in_body(node, body)):
-                        index = t[1].index(t[0])
-                        body[index:index] = assignments  # insert before
-                        return
-            parent = parent.parent
-
-        raise RuntimeError("Cannot find place to insert assignments.")
