@@ -28,24 +28,22 @@ def tracer(frame: types.FrameType, event, arg):
     #     :return: must return this object for tracing to work
     """
     filename = frame.f_code.co_filename
-    # filename = frame.f_globals.get("__file__", "<unknown>")
     # ignore files we don't have access to
     if is_lib_file(filename):
         return tracer
 
     path = Path(filename)
     path.resolve()
-    try:
-        lineno = frame.f_lineno
 
-        t = tracked_files.get(path)
-        if t is None:
-            return tracer
+    # grab the tracker for the current file
+    t = tracked_files.get(path)
+    if t is None:
+        return tracer
 
-        if event == "line":
-            t.traced_line_numbers.add(lineno)
-    except Exception as e:
-        print(f"Exception: {e}")
+    lineno = frame.f_lineno
+    if event == "line":
+        # add lineno as executed
+        t.executed_line_numbers.add(lineno)
 
     return tracer
 
@@ -54,8 +52,8 @@ def load_code(root_path: Path, module_name: str):
     """Load user code, patch function calls."""
     finder = Finder(root_path)
     try:
+        # insert our custom finder into the "meta-path", import the module
         sys.meta_path.insert(0, finder)
-        module_name = module_name.replace(".py", "")
         return importlib.import_module(module_name)
     finally:
         sys.meta_path.pop(0)
@@ -75,25 +73,30 @@ def main():
 
     # TODO: make this work for modules
     sys.settrace(tracer)
-    load_code(Path(script_dir), target)
+    # the next line will run the code!
+    load_code(Path(script_dir), Path(target).stem)
     # runpy.run_path(os.path.abspath(target), run_name="__main__")
     sys.settrace(None)
 
+    # after running is complete
     for tf in tracked_files.values():
-        print(tf.traced_line_numbers)
         pruner = ASTPruner()
+        # nodes is the AST repr of the file
         nodes = tf.nodes
+        # walk the AST; add attributes to nodes whose lines have been executed
         for node in ast.walk(nodes):
             if hasattr(node, "lineno"):
-                if node.lineno in tf.traced_line_numbers:
+                if node.lineno in tf.executed_line_numbers:
                     node.executed = True
                 else:
                     node.executed = False
 
+        # prune ifs, etc.
         nodes = pruner.visit(tf.nodes)
         nodes = ast.fix_missing_locations(nodes)
         tf.nodes = nodes
 
+        # more rewriting for simplifying grammars
         rewriter = ASTRewriterB(tf)
         nodes = rewriter.rewrite()
         nodes = ast.fix_missing_locations(nodes)

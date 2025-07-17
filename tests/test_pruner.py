@@ -24,7 +24,7 @@ def setup_example():
 )
 def test_tracer(example_name, lines, setup_example):
     file = TrackedFile(setup_example(example_name))
-    file.traced_line_numbers = lines
+    file.executed_line_numbers = lines
     tracer = TFPruner(file)
     result = tracer.visit(file.nodes)
     assert ast.dump(result) == ast.dump(setup_example(f"{example_name}r"))

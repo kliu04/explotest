@@ -21,7 +21,6 @@ class ASTPruner(ast.NodeTransformer):
 
         body_was_executed = ASTPruner.check_executed(node.body)
         else_was_executed = ASTPruner.check_executed(node.orelse)
-        print(ast.dump(node, include_attributes=True), "!!!")
 
         if (body_was_executed and else_was_executed) or (
             not body_was_executed and not else_was_executed
@@ -36,6 +35,16 @@ class ASTPruner(ast.NodeTransformer):
             return node.orelse
 
     def visit_For(self, node):
+        super().generic_visit(node)
+
+        body_was_executed = ASTPruner.check_executed(node.body)
+
+        # condition is false
+        if not body_was_executed:
+            return None
+        return node
+
+    def visit_While(self, node):
         super().generic_visit(node)
 
         body_was_executed = ASTPruner.check_executed(node.body)

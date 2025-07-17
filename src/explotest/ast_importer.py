@@ -17,16 +17,18 @@ class Loader(importlib.abc.Loader):
         self.run_as_main = run_as_main
 
     def exec_module(self, module):
-
-        with open(module.__file__) as f:
-            src = f.read()
-
         path = Path(module.__file__)
+
         if tracked_files.get(path):
+            # if the file has already been tracked, we can just use the previous one
             patched_tree = tracked_files[path].nodes
         else:
+            # open the file, parse the AST, and rewrite it before running it
+            with open(module.__file__) as f:
+                src = f.read()
             tree = ast.parse(src, module.__file__, "exec")
             ast_file = ASTFile(path.name, tree)
+
             trans = ASTRewriterA(ast_file)
             patched_tree = trans.rewrite()
             # print(ast.dump(patched_tree, indent=4, include_attributes=True))
@@ -34,10 +36,12 @@ class Loader(importlib.abc.Loader):
             patched_tree = ast.parse(ast.unparse(patched_tree))
             ast.fix_missing_locations(patched_tree)
             ast_file.nodes = patched_tree
+
             tracked_files[path] = ast_file
 
         code = compile(patched_tree, module.__file__, "exec")
 
+        # run the first module as main
         if self.run_as_main:
             module.__dict__["__name__"] = "__main__"
             self.run_as_main = False

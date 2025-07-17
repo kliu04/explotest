@@ -2,6 +2,7 @@ import ast
 import copy
 from typing import cast
 
+from explotest import helpers
 from explotest.ast_file import ASTFile
 
 
@@ -15,6 +16,10 @@ class ASTRewriter(ast.NodeTransformer):
         self.ast_file = ast_file
 
     def rewrite(self):
+        """
+        Use this instead of visit!!!
+        :return:
+        """
         node = self.ast_file.nodes
         node.parent = None
         for n in ast.walk(node):
@@ -126,36 +131,41 @@ class ASTRewriterB(ASTRewriter):
         self.generic_visit(node)
 
         lis = []
+        names = []
         for i, arg in enumerate(node.args):
+            temp_name = helpers.uniquify("temp")
             if ASTRewriter.is_simple(arg):
                 continue
             elif isinstance(arg, ast.Starred):
                 assign = ast.Assign(
-                    targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())],
+                    targets=[ast.Name(id=temp_name, ctx=ast.Store())],
                     value=arg.value,
                 )
+                names.append(temp_name)
 
             else:
                 assign = ast.Assign(
-                    targets=[ast.Name(id=f"temp_{i}", ctx=ast.Store())], value=arg
+                    targets=[ast.Name(id=temp_name, ctx=ast.Store())], value=arg
                 )
+                names.append(temp_name)
             assign.executed = getattr(node, "executed", False)
             lis.append(assign)
         self.queue.append((lis, node))
 
         lis = []
         # the actual args in the call
-        for i, arg in enumerate(node.args):
+        names = iter(names)
+        for arg in node.args:
             if ASTRewriter.is_simple(arg):
                 lis.append(arg)
             elif isinstance(arg, ast.Starred):
                 lis.append(
                     ast.Starred(
-                        value=ast.Name(id=f"temp_{i}", ctx=ast.Load()), ctx=arg.ctx
+                        value=ast.Name(id=next(names), ctx=ast.Load()), ctx=arg.ctx
                     )
                 )
             else:
-                lis.append(ast.Name(id=f"temp_{i}", ctx=ast.Load()))
+                lis.append(ast.Name(id=next(names), ctx=ast.Load()))
 
         node.args = lis
         return node
@@ -170,19 +180,20 @@ class ASTRewriterB(ASTRewriter):
 
             if node.slice.lower:
                 if not ASTRewriter.is_simple(node.slice.lower):
+                    temp_name = helpers.uniquify("temp")
                     assign = ast.Assign(
-                        targets=[ast.Name(id="temp_0", ctx=ast.Store())],
+                        targets=[ast.Name(id=temp_name, ctx=ast.Store())],
                         value=node.slice.lower,
                     )
                     assign.executed = getattr(node, "executed", False)
                     assignments.append(assign)
-                    slice_kwargs["lower"] = ast.Name(id="temp_0", ctx=ast.Load())
+                    slice_kwargs["lower"] = ast.Name(id=temp_name, ctx=ast.Load())
                 else:
                     slice_kwargs["lower"] = node.slice.lower
 
             if node.slice.upper:
                 if not ASTRewriter.is_simple(node.slice.upper):
-                    temp_name = "temp_1" if node.slice.lower else "temp_0"
+                    temp_name = helpers.uniquify("temp")
                     assign = ast.Assign(
                         targets=[ast.Name(id=temp_name, ctx=ast.Store())],
                         value=node.slice.upper,
@@ -201,8 +212,9 @@ class ASTRewriterB(ASTRewriter):
         elif ASTRewriter.is_simple(node.slice):
             return node
         else:
+            temp_name = helpers.uniquify("temp")
             assign = ast.Assign(
-                targets=[ast.Name(id="temp", ctx=ast.Store())],
+                targets=[ast.Name(id=temp_name, ctx=ast.Store())],
                 value=node.slice,
             )
             assign.executed = getattr(node, "executed", False)
@@ -214,7 +226,7 @@ class ASTRewriterB(ASTRewriter):
                     node,
                 )
             )
-            node.slice = ast.Name("temp", ctx=ast.Load())
+            node.slice = ast.Name(temp_name, ctx=ast.Load())
             return node
 
     def visit_FunctionDef(self, node):
