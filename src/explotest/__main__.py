@@ -4,6 +4,7 @@ Sets up tracer that will track every executed line
 """
 
 import ast
+import atexit
 import importlib
 import os
 import sys
@@ -28,24 +29,31 @@ def tracer(frame: types.FrameType, event, arg):
     #     :return: must return this object for tracing to work
     """
     filename = frame.f_code.co_filename
-    # ignore files we don't have access to
-    if is_lib_file(filename):
+    try:
+        # ignore files we don't have access to
+        if is_lib_file(filename):
+            # print(f"[skip] {filename}")
+            return tracer
+
+        path = Path(filename)
+        path.resolve()
+
+        # grab the tracker for the current file
+        t = tracked_files.get(path)
+        if t is None:
+            # print(f"[no tracker] {path}")
+            return tracer
+
+        lineno = frame.f_lineno
+        if event == "line":
+            # add lineno as executed
+            t.executed_line_numbers.add(lineno)
+
         return tracer
-
-    path = Path(filename)
-    path.resolve()
-
-    # grab the tracker for the current file
-    t = tracked_files.get(path)
-    if t is None:
-        return tracer
-
-    lineno = frame.f_lineno
-    if event == "line":
-        # add lineno as executed
-        t.executed_line_numbers.add(lineno)
-
-    return tracer
+    except Exception as ex:
+        print(f"[error] {filename}:{event}: {ex}")
+        print(frame.f_lineno, arg)
+        return None
 
 
 def load_code(root_path: Path, module_name: str):
@@ -55,6 +63,8 @@ def load_code(root_path: Path, module_name: str):
         # insert our custom finder into the "meta-path", import the module
         sys.meta_path.insert(0, finder)
         return importlib.import_module(module_name)
+    except Exception as ex:
+        print(f"[error] {module_name}:{ex}")
     finally:
         sys.meta_path.pop(0)
 
@@ -73,6 +83,7 @@ def main():
 
     # TODO: make this work for modules
     sys.settrace(tracer)
+    atexit.register(lambda: sys.settrace(None))
     # the next line will run the code!
     load_code(Path(script_dir), Path(target).stem)
     # runpy.run_path(os.path.abspath(target), run_name="__main__")

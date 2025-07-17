@@ -2,6 +2,7 @@ import ast
 import importlib
 import importlib.abc
 import importlib.util
+import sys
 from pathlib import Path
 
 from explotest.ast_file import ASTFile
@@ -23,9 +24,17 @@ class Loader(importlib.abc.Loader):
             # if the file has already been tracked, we can just use the previous one
             patched_tree = tracked_files[path].nodes
         else:
+
             # open the file, parse the AST, and rewrite it before running it
             with open(module.__file__) as f:
                 src = f.read()
+
+            if self.run_as_main:
+                module.__dict__["__name__"] = "__main__"
+                self.run_as_main = False
+                if len(sys.argv) > 1:
+                    src = f"import sys\nsys.argv = {sys.argv}\n" + src
+
             tree = ast.parse(src, module.__file__, "exec")
             ast_file = ASTFile(path.name, tree)
 
@@ -39,12 +48,9 @@ class Loader(importlib.abc.Loader):
 
             tracked_files[path] = ast_file
 
-        code = compile(patched_tree, module.__file__, "exec")
+            # run the first module as main
 
-        # run the first module as main
-        if self.run_as_main:
-            module.__dict__["__name__"] = "__main__"
-            self.run_as_main = False
+        code = compile(patched_tree, module.__file__, "exec")
         exec(code, module.__dict__)
 
     def create_module(self, spec):
