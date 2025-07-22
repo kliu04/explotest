@@ -129,7 +129,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             _clone = cast(
                 ast.AST,
                 ast.Assign(
-                    targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                    targets=[ast.Name(id=f"clone_{parameter}", ctx=ast.Store())],
                     value=ast.Dict(
                         keys=list(d.keys()),
                         values=list(d.values()),
@@ -152,7 +152,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
             _clone = cast(
                 ast.AST,
                 ast.Assign(
-                    targets=[ast.Name(id=parameter, ctx=ast.Store())],
+                    targets=[ast.Name(id=f"clone_{parameter}", ctx=ast.Store())],
                     value=collection_ast_type(
                         elts=collection_asts,
                         ctx=ast.Load(),
