@@ -16,6 +16,8 @@ import openai
 
 from llm_analysis_pass import LLMAnalyzer
 
+LOG = True
+
 
 class EventAnalyzer:
     return_data: list[Tuple[CodeType, int, object]]
@@ -27,13 +29,16 @@ class EventAnalyzer:
     TOOL_ID = 3
     TOOL_NAME = "explotest_mock_tracker"
     llm: openai.OpenAI
+    model: str
 
     def __init__(
         self,
         proc_filter: tuple[str, str],
         capture_names_in_proc: list[str],
         fn_def: ast.FunctionDef,
-        oai: openai.OpenAI,
+        # oai: openai.OpenAI,
+        llm: openai.OpenAI,
+        model: str,
     ):
         """
         :param proc_filter is a tuple containing (in order) 1.: the function name and 2.: the file path of the function that `proc_filter` belongs to.
@@ -47,8 +52,9 @@ class EventAnalyzer:
         self.proc_filter = proc_filter
         self.return_data = []
         self.line_data = []
-        self.llm = oai
+        self.llm = llm
         self.fn_def = fn_def
+        self.model = model
 
     def start_tracking(self):
         """
@@ -102,13 +108,12 @@ class EventAnalyzer:
         return None
 
     def end_tracking(self):
-        # for code, instr_offset, retval in self.return_data:
-        #     print(code, instr_offset, retval)
-        # for code, lineno in self.line_data:
-        #     print(code, lineno)
+        sm.set_events(self.TOOL_ID, 0)
+        sm.register_callback(self.TOOL_ID, sm.events.LINE, None)
+        sm.register_callback(self.TOOL_ID, sm.events.PY_RETURN, None)
         sm.free_tool_id(self.TOOL_ID)
         # return self.globals_by_frame_id
         for frame_id, var_map in self.globals_by_frame_id.items():
-            llm_analysis = LLMAnalyzer(self.llm, self.fn_def, var_map)
+            llm_analysis = LLMAnalyzer(self.llm, self.fn_def, var_map, self.model)
             print(f"============ FRAME_ID: {frame_id} ============")
             return llm_analysis.filter_mocks()

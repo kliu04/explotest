@@ -11,6 +11,7 @@ class LLMAnalyzer:
     llm: openai.OpenAI
     fn_def: ast.FunctionDef
     globals: dict[str, object]
+    model: str
     SYSTEM_PROMPT = """
     You are an expert senior Python QA developer with expertise in writing unit tests.
     
@@ -62,14 +63,18 @@ class LLMAnalyzer:
     
     Response: no
     """
-    MODEL = "gemini-2.5-flash-lite-preview-06-17"
 
     def __init__(
-        self, llm: openai.OpenAI, fn_def: ast.FunctionDef, globals: dict[str, object]
+        self,
+        llm: openai.OpenAI,
+        fn_def: ast.FunctionDef,
+        globals: dict[str, object],
+        model: str,
     ):
         self.llm = llm
         self.fn_def = fn_def
         self.globals = globals
+        self.model = model
 
     def filter_mocks(self) -> dict[str, object]:
         """
@@ -93,8 +98,8 @@ class LLMAnalyzer:
 """
             print(f"Prompting... {prompt}")
             query = self.llm.chat.completions.create(
-                model=self.MODEL,
-                reasoning_effort="low",
+                model=self.model,
+                # reasoning_effort="low",
                 messages=[
                     ChatCompletionSystemMessageParam(
                         content=self.SYSTEM_PROMPT, role="system"

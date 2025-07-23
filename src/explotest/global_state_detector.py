@@ -19,6 +19,11 @@ class External(ABC):
     @abstractmethod
     def get_mock(self, reconstructor: Reconstructor) -> list[ast.AST]: ...
 
+    @override
+    def __str__(self):
+        return self.name
+
+
 @dataclass
 class ExternalVariable(External):
     @override
@@ -79,7 +84,8 @@ def find_global_vars(source: ast.Module, proc_name: str) -> list[External]:
 
     return result
 
-# 
+
+#
 # def classify_name(
 #     name: ast.Name | Literal["CONSTANT"], name_idx: int, proc: ast.FunctionDef
 # ) -> External | Literal["LOCAL"]:

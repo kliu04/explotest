@@ -49,4 +49,6 @@ def foo():
 
 def test_one(analyzer):
     foo()
-    assert 1 == len(analyzer.end_tracking())
+    result = analyzer.end_tracking()
+    assert 1 == len(result)
+    assert "L" in result
