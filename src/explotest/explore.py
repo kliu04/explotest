@@ -8,7 +8,7 @@ from .helpers import Mode, is_running_under_test, sanitize_name
 from .test_generator import TestGenerator
 
 
-def explore(func=None, mode=Mode.PICKLE):
+def explore(func=None, mode=Mode.RECONSTRUCT):
 
     def _explore(_func):
         # if file is a test file, do nothing

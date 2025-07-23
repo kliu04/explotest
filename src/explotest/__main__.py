@@ -52,7 +52,6 @@ def tracer(frame: types.FrameType, event, arg):
         return tracer
     except Exception as ex:
         print(f"[error] {filename}:{event}: {ex}")
-        print(frame.f_lineno, arg)
         return None
 
 
@@ -84,7 +83,7 @@ def main():
     # TODO: make this work for modules
     sys.settrace(tracer)
     atexit.register(lambda: sys.settrace(None))
-    # the next line will run the code!
+    # the next line will run the code and rewriterA
     load_code(Path(script_dir), Path(target).stem)
     # runpy.run_path(os.path.abspath(target), run_name="__main__")
     sys.settrace(None)

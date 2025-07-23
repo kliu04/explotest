@@ -1,5 +1,6 @@
 import ast
 import copy
+from abc import abstractmethod
 from typing import cast
 
 from explotest import helpers
@@ -15,24 +16,8 @@ class ASTRewriter(ast.NodeTransformer):
         self.queue = []
         self.ast_file = ast_file
 
-    def rewrite(self):
-        """
-        Use this instead of visit!!!
-        :return:
-        """
-        node = self.ast_file.nodes
-        node.parent = None
-        for n in ast.walk(node):
-            # mark nodes that are ran
-            for child in ast.iter_child_nodes(n):
-                child.parent = n
-
-        new_node = self.visit(node)
-        for assignments, n in self.queue:
-            ASTRewriter.insert_assignments(assignments, n)
-        ast.fix_missing_locations(new_node)
-        self.queue.clear()
-        return new_node
+    @abstractmethod
+    def rewrite(self): ...
 
     @staticmethod
     def is_simple(arg):
@@ -86,7 +71,6 @@ class ASTRewriterA(ASTRewriter):
                 [body],
                 [orelse],
             )
-            new_node.end_lineno = node.lineno + 3
             return new_node
         return node
 
@@ -96,6 +80,12 @@ class ASTRewriterA(ASTRewriter):
             new_node = ast.Pass()
             node.orelse = [new_node]
         return node
+
+    def rewrite(self):
+        node = self.ast_file.nodes
+        new_node = self.visit(node)
+        ast.fix_missing_locations(new_node)
+        return new_node
 
 
 class ASTRewriterB(ASTRewriter):
@@ -244,3 +234,22 @@ class ASTRewriterB(ASTRewriter):
                         node.body = [ast.Pass()]
 
         return node
+
+    def rewrite(self):
+        """
+        Use this instead of visit!!!
+        :return:
+        """
+        node = self.ast_file.nodes
+        node.parent = None
+        for n in ast.walk(node):
+            # mark nodes that are ran
+            for child in ast.iter_child_nodes(n):
+                child.parent = n
+
+        new_node = self.visit(node)
+        for assignments, n in self.queue:
+            ASTRewriter.insert_assignments(assignments, n)
+        ast.fix_missing_locations(new_node)
+        self.queue.clear()
+        return new_node

@@ -5,8 +5,8 @@ def foo(a: int) -> None:
     w = 14
 
     if y > 0:
-        # y = z
-        # x = x + w
+        y = z
+        x = x + w
         if y + z == w:
             k = 1
         elif False:
