@@ -4,17 +4,18 @@ import os
 import runpy
 import sys
 import types
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
 
 from explotest.__main__ import is_lib_file
 from explotest.ast_file import ASTFile
+from explotest.ast_pruner import ASTPruner
 
 DIR = "./data"
 pathlist = Path(DIR).glob(f"*pruner_input*.py")
-files = dict()
-
+files: dict[str, ASTFile] = {}
 
 @pytest.fixture
 def tracer():
@@ -30,7 +31,6 @@ def tracer():
         try:
             # ignore files we don't have access to
             if is_lib_file(filename):
-                # print(f"[skip] {filename}")
                 return _tracer
 
             path = Path(filename)
@@ -54,14 +54,38 @@ def tracer():
 
     return _tracer
 
+@pytest.fixture
+def setup_example():
+    def _load_ast(name: str):
+        with open(f"./data/{name}.py") as f:
+            return ast.parse(f.read())
+
+    return _load_ast
+
 
 @pytest.mark.parametrize("filename", pathlist)
-def test_pruner(filename, monkeypatch, tracer):
+def test_pruner(filename: Path, tracer, setup_example):
+    files.clear()
 
-    # with open(os.devnull, "w") as fnull, redirect_stdout(fnull):
-    sys.settrace(tracer)
-    atexit.register(lambda: sys.settrace(None))
-    runpy.run_path(os.path.abspath(filename), run_name="__main__")
-    sys.settrace(None)
+    with open(os.devnull, "w") as fnull, redirect_stdout(fnull):
+        sys.settrace(tracer)
+        atexit.register(lambda: sys.settrace(None))
+        runpy.run_path(os.path.abspath(filename), run_name="__main__")
+        sys.settrace(None)
 
-    print(files)
+    for ast_file in files.values():
+        pruner = ASTPruner()
+        nodes = ast_file.nodes
+        # walk the AST; add attributes to nodes whose lines have been executed
+        for node in ast.walk(nodes):
+            if hasattr(node, "lineno"):
+                if node.lineno in ast_file.executed_line_numbers:
+                    node.executed = True
+                else:
+                    node.executed = False
+
+        result = pruner.visit(ast_file.nodes)
+        result = ast.fix_missing_locations(result)
+
+        expected_name = filename.stem.replace("input", "expected")
+        assert ast.dump(result) == ast.dump(setup_example(expected_name))

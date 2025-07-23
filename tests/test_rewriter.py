@@ -52,5 +52,4 @@ def test_rewriter_b(example_name, setup_example, monkeypatch, fake_uuid):
     rewriter = ASTRewriterB(ASTFile(example_name, setup_example(example_name)))
     result = rewriter.rewrite()
     expected_name = example_name.replace("input", "expected")
-    print(ast.unparse(result))
     assert ast.dump(result) == ast.dump(setup_example(expected_name))
