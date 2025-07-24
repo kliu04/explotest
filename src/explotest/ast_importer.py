@@ -4,25 +4,27 @@ import importlib.abc
 import importlib.util
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from explotest.__main__ import ASTTracker
 from explotest.ast_file import ASTFile
 from explotest.ast_rewriter import ASTRewriterA
-
-tracked_files: dict[Path, ASTFile] = {}
 
 
 class Loader(importlib.abc.Loader):
     """Implement importlib.Loader"""
 
-    def __init__(self, run_as_main):
+    def __init__(self, ctx: "ASTTracker", run_as_main: bool):
         self.run_as_main = run_as_main
+        self.ctx = ctx
 
     def exec_module(self, module):
         path = Path(module.__file__)
 
-        if tracked_files.get(path):
+        if self.ctx.get(path):
             # if the file has already been tracked, we can just use the previous one
-            patched_tree = tracked_files[path].nodes
+            ast_file = self.ctx.get(path)
         else:
 
             # open the file, parse the AST, and rewrite it before running it
@@ -37,20 +39,11 @@ class Loader(importlib.abc.Loader):
 
             tree = ast.parse(src, module.__file__, "exec")
             ast_file = ASTFile(path.name, tree)
+            ast_file.transform(ASTRewriterA())
+            ast_file.reparse()
+            self.ctx.add(path, ast_file)
 
-            trans = ASTRewriterA(ast_file)
-            patched_tree = trans.rewrite()
-            # print(ast.dump(patched_tree, indent=4, include_attributes=True))
-            # print(ast.dump(ast.parse(ast.unparse(patched_tree)), indent=4, include_attributes=True))
-            patched_tree = ast.parse(ast.unparse(patched_tree))
-            ast.fix_missing_locations(patched_tree)
-            ast_file.nodes = patched_tree
-
-            tracked_files[path] = ast_file
-
-            # run the first module as main
-
-        code = compile(patched_tree, module.__file__, "exec")
+        code = compile(ast_file.node, module.__file__, "exec")  # type: ignore
         exec(code, module.__dict__)
 
     def create_module(self, spec):
@@ -60,9 +53,10 @@ class Loader(importlib.abc.Loader):
 class Finder(importlib.abc.MetaPathFinder):
     """An importlib finder that will handler files from user code directory."""
 
-    def __init__(self, code_dir):
+    def __init__(self, code_dir, ctx):
         self.code_dir = code_dir
         self.run_as_main = True
+        self.ctx = ctx
 
     def find_spec(self, fullname: str, path: list[str], target=None):
         # if path:
@@ -74,7 +68,7 @@ class Finder(importlib.abc.MetaPathFinder):
         if not full_path.is_file():
             return None
 
-        loader = Loader(self.run_as_main)
+        loader = Loader(self.ctx, self.run_as_main)
         self.run_as_main = False
         spec = importlib.util.spec_from_file_location(
             fullname, full_path, loader=loader
