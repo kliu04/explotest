@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from explotest.__main__ import ASTTracker
+    from explotest.__main__ import ASTContext
 from explotest.ast_file import ASTFile
 from explotest.ast_rewriter import ASTRewriterA
 
@@ -15,7 +15,7 @@ from explotest.ast_rewriter import ASTRewriterA
 class Loader(importlib.abc.Loader):
     """Implement importlib.Loader"""
 
-    def __init__(self, ctx: "ASTTracker", run_as_main: bool):
+    def __init__(self, ctx: "ASTContext", run_as_main: bool):
         self.run_as_main = run_as_main
         self.ctx = ctx
 

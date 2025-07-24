@@ -16,7 +16,7 @@ import types
 from pathlib import Path
 from typing import Callable
 
-from explotest.ast_file import ASTFile
+from explotest.ast_context import ASTContext
 from explotest.ast_importer import Finder
 from explotest.ast_pruner import ASTPruner
 from explotest.ast_rewriter import ASTRewriterB
@@ -26,22 +26,7 @@ def is_lib_file(filepath: str) -> bool:
     return any(substring in filepath for substring in ("3.13", ".venv", "<frozen"))
 
 
-class ASTTracker:
-    def __init__(self):
-        self.files: dict[Path, ASTFile] = {}
-
-    def get(self, path: Path) -> ASTFile | None:
-        return self.files.get(path)
-
-    def add(self, path: Path, file: ASTFile):
-        self.files[path] = file
-
-    @property
-    def all_files(self) -> list[ASTFile]:
-        return list(self.files.values())
-
-
-def make_tracer(ctx: ASTTracker) -> Callable:
+def make_tracer(ctx: ASTContext) -> Callable:
     def _tracer(frame: types.FrameType, event, arg):
         """
         Hooks onto default tracer to add instrumentation for ExploTest.
@@ -78,7 +63,7 @@ def make_tracer(ctx: ASTTracker) -> Callable:
     return _tracer
 
 
-def load_code(root_path: Path, module_name: str, ctx: ASTTracker):
+def load_code(root_path: Path, module_name: str, ctx: ASTContext):
     """Load user code, patch function calls."""
     finder = Finder(root_path, ctx)
     try:
@@ -104,7 +89,7 @@ def main():
     sys.path.insert(0, script_dir)
 
     # TODO: make this work for modules
-    ctx = ASTTracker()
+    ctx = ASTContext()
     tracer = make_tracer(ctx)
     sys.settrace(tracer)
     atexit.register(lambda: sys.settrace(None))

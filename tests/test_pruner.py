@@ -8,13 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from explotest.__main__ import make_tracer, ASTTracker
-from explotest.ast_file import ASTFile
+from explotest.__main__ import make_tracer, ASTContext
 from explotest.ast_pruner import ASTPruner
 
 DIR = "./data"
 pathlist = Path(DIR).glob(f"*pruner_input*.py")
-files: dict[str, ASTFile] = {}
+
 
 @pytest.fixture
 def setup_example():
@@ -27,11 +26,8 @@ def setup_example():
 
 @pytest.mark.parametrize("filename", pathlist)
 def test_pruner(filename: Path, setup_example):
-
-    files.clear()
-
     with open(os.devnull, "w") as fnull, redirect_stdout(fnull):
-        ctx = ASTTracker()
+        ctx = ASTContext()
         tracer = make_tracer(ctx)
         sys.settrace(tracer)
         atexit.register(lambda: sys.settrace(None))
