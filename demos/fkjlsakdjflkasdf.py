@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 
 @app.route("/")
-@explore(mode=Mode.PICKLE)
+@explore(mode=Mode.RECONSTRUCT)
 def hello_world():
     if request.method == "GET":
         return "<p>Hello, World!</p>"

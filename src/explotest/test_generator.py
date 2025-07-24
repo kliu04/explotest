@@ -10,6 +10,7 @@ from .generated_test import GeneratedTest
 from .helpers import Mode
 from .helpers import sanitize_name
 from .pickle_reconstructor import PickleReconstructor
+from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 from .slice_reconstructor import SliceReconstructor
 
@@ -35,7 +36,7 @@ class TestGenerator:
                 raise Exception(f"Unknown Mode: {mode}")
 
     def _imports(
-        self, filename: str, inject: list[ast.Import | ast.ImportFrom] = None
+        self, filename: str, inject: list[ast.Import | ast.ImportFrom] | None = None
     ) -> list[ast.Import | ast.ImportFrom]:
         """
         Returns all the imports required for this test.
@@ -51,6 +52,13 @@ class TestGenerator:
             imports += [ast.Import(names=[alias(name=filename)])]
 
         return imports
+
+    @staticmethod
+    def create_mocks(ptf_mapping: list[str]) -> ast.FunctionDef:
+        """
+        Creates a function that uses the mock_ptf_names
+        """
+        return ast.FunctionDef(name="test", args=ast.arguments(), body=[])
 
     def generate(
         self,

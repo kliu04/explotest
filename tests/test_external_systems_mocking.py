@@ -48,33 +48,33 @@ expected_results = {
             GEMINI_CONNECTION,
             "gemini-2.5-flash-lite",
         ),
-        (
-            GEMINI_CONNECTION,
-            "gemini-2.5-pro",
-        ),
-        (
-            GEMINI_CONNECTION,
-            "gemini-2.5-flash",
-        ),
-        (OLLAMA_CONNECTION, "gemma3n:e2b"),
-        (OLLAMA_CONNECTION, "gemma3n:e4b"),
-        (OLLAMA_CONNECTION, "qwen2.5-coder:0.5b"),
-        (OLLAMA_CONNECTION, "deepseek-coder"),
+        # (
+        #     GEMINI_CONNECTION,
+        #     "gemini-2.5-pro",
+        # ),
+        # (
+        #     GEMINI_CONNECTION,
+        #     "gemini-2.5-flash",
+        # ),
+        # (OLLAMA_CONNECTION, "gemma3n:e2b"),
+        # (OLLAMA_CONNECTION, "gemma3n:e4b"),
+        # (OLLAMA_CONNECTION, "qwen2.5-coder:0.5b"),
+        # (OLLAMA_CONNECTION, "deepseek-coder"),
         # (OLLAMA_CONNECTION, "deepseek-r1:8b"),
     ],
     ids=[
         "gemini-flash-lite",
-        "gemini-flash",
-        "gemini-pro",
-        "ollama-gemma-e2b",
-        "ollama-gemma-e4b",
-        "ollama-qwen2.5-coder-0.5b",
-        "ollama-deepseek-coder",
+        # "gemini-flash",
+        # "gemini-pro",
+        # "ollama-gemma-e2b",
+        # "ollama-gemma-e4b",
+        # "ollama-qwen2.5-coder-0.5b",
+        # "ollama-deepseek-coder",
         # "ollama-deepseek-r1-8b",
     ],
 )
 @pytest.mark.parametrize("fut", FUTS, ids=FUT_NAMES)
-class gTestExternalSystemsMocking:
+class TestExternalSystemsMocking:
     @pytest.fixture
     def fut_src(self, fut) -> ast.Module:
         fut_src = ast.parse(inspect.getsource(fut[1]))

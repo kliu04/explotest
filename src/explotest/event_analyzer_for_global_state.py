@@ -14,7 +14,7 @@ from typing import Any, Tuple
 
 import openai
 
-from llm_analysis_pass import LLMAnalyzer
+from explotest.llm_analysis_pass import LLMAnalyzer
 
 LOG = True
 
@@ -47,7 +47,7 @@ class EventAnalyzer:
 
         :param oai openai.OpenAI API connection.
         """
-        self.target_names_in_proc = capture_names_in_proc
+        # self.target_names_in_proc = capture_names_in_proc
         self.globals_by_frame_id = {}
         self.proc_filter = proc_filter
         self.return_data = []
@@ -92,10 +92,7 @@ class EventAnalyzer:
             for name, value in parent_frame.f_globals.items():
                 # print(f"name: {name}, value: {value}")
 
-                if (
-                    name not in self.globals_by_frame_id[id(parent_frame)]
-                    and name in self.target_names_in_proc
-                ):
+                if name not in self.globals_by_frame_id[id(parent_frame)]:
                     # print(f"name: {name}, value: {value}")
                     self.globals_by_frame_id[id(parent_frame)][name] = value
                 # breakpoint()
@@ -107,7 +104,9 @@ class EventAnalyzer:
         self.line_data.append((code, line_number))
         return None
 
-    def end_tracking(self):
+    def end_tracking(
+        self,
+    ) -> dict[str, object] | None:  # pyright: ignore [reportReturnType]
         sm.set_events(self.TOOL_ID, 0)
         sm.register_callback(self.TOOL_ID, sm.events.LINE, None)
         sm.register_callback(self.TOOL_ID, sm.events.PY_RETURN, None)
@@ -116,4 +115,7 @@ class EventAnalyzer:
         for frame_id, var_map in self.globals_by_frame_id.items():
             llm_analysis = LLMAnalyzer(self.llm, self.fn_def, var_map, self.model)
             print(f"============ FRAME_ID: {frame_id} ============")
-            return llm_analysis.filter_mocks()
+            return (
+                llm_analysis.filter_mocks()
+            )  # return the first instance of the call, we don't care about the rest.
+        # just try to recon that

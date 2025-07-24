@@ -39,6 +39,8 @@ src3_expected = [
 
 src4_expected = []
 
+src5_expected = [ExternalVariable(value=[], name="_in_memory_cache")]
+
 
 @pytest.mark.parametrize(
     "source,expected",
@@ -49,7 +51,7 @@ src4_expected = []
                 Path("../test_data/test_global_state_detector").glob("**.py"),
                 key=lambda obj: str(obj),
             ),
-            [src1_expected, src2_expected, src3_expected, src4_expected],
+            [src1_expected, src2_expected, src3_expected, src4_expected, src5_expected],
         )
     ],
 )
@@ -59,6 +61,10 @@ class TestFindGlobalVars:
         # result = [ast.unparse(ast.fix_missing_locations(d)) for d in call_res]
         # print([ast.unparse(d) for d in result])
         assert expected == call_res
+
+        # relax assertions in development
+        # TODO: un-relax assertions after completion
+        assert [val.name for val in expected] == [val.name for val in call_res]
 
 
 def test_find_names_attributes():
