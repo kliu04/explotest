@@ -92,7 +92,9 @@ class EventAnalyzer:
             for name, value in parent_frame.f_globals.items():
                 # print(f"name: {name}, value: {value}")
 
-                if name not in self.globals_by_frame_id[id(parent_frame)]:
+                if name not in self.globals_by_frame_id[
+                    id(parent_frame)
+                ] and not callable(value):
                     # print(f"name: {name}, value: {value}")
                     self.globals_by_frame_id[id(parent_frame)][name] = value
                 # breakpoint()
