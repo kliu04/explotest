@@ -31,12 +31,12 @@ FUTS: list[tuple[str, Callable[[Any], Any]]] = list(
 FUT_NAMES = list(map(lambda fut: fut[0], FUTS))
 
 expected_results = {
-    "add_item_to_cache": ["_in_memory_cache"],
+    "add_item_to_cache": [],
     "get_item_from_cache": [],
-    "clear_cache": ["_in_memory_cache"],
+    "clear_cache": [],
     "connect_to_database": ["psycopg"],
-    "setup_database": [],
-    "get_user_from_db": [],
+    "setup_database": ["psycopg"],
+    "get_user_from_db": ["psycopg"],
     "get_weather_data": ["requests"],
 }
 
@@ -101,7 +101,7 @@ class TestExternalSystemsMocking:
 
     def test_fut(self, analyzer, fut, global_candidates):
         print(f"Running test for {fut[0]}")
-        print(f"Candidate globals: {global_candidates}")
+        # print(f"Candidate globals: {global_candidates}")
         analyzer.start_tracking()
         test_fns.run_examples()
         res = analyzer.end_tracking()

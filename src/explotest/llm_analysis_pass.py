@@ -99,7 +99,7 @@ class LLMAnalyzer:
             print(f"Prompting... {prompt}")
             query = self.llm.chat.completions.create(
                 model=self.model,
-                # reasoning_effort="low",
+                reasoning_effort="medium",
                 messages=[
                     ChatCompletionSystemMessageParam(
                         content=self.SYSTEM_PROMPT, role="system"
@@ -110,7 +110,7 @@ class LLMAnalyzer:
                     ),
                 ],
             )
-            print(f"Response: {query.choices[0].message.content}")
+            # print(f"Response: {query.choices[0].message.content}")
             if "yes" in query.choices[0].message.content.lower():
                 filtered[name] = obj
             elif "no" in query.choices[0].message.content.lower():

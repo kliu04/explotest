@@ -92,9 +92,11 @@ class EventAnalyzer:
             for name, value in parent_frame.f_globals.items():
                 # print(f"name: {name}, value: {value}")
 
-                if name not in self.globals_by_frame_id[
-                    id(parent_frame)
-                ] and not callable(value):
+                if (
+                    name not in self.globals_by_frame_id[id(parent_frame)]
+                    and not callable(value)
+                    and name[0] != "_"
+                ):
                     # print(f"name: {name}, value: {value}")
                     self.globals_by_frame_id[id(parent_frame)][name] = value
                 # breakpoint()
@@ -117,6 +119,7 @@ class EventAnalyzer:
         for frame_id, var_map in self.globals_by_frame_id.items():
             llm_analysis = LLMAnalyzer(self.llm, self.fn_def, var_map, self.model)
             print(f"============ FRAME_ID: {frame_id} ============")
+            print(f"varmap: {var_map}")
             return (
                 llm_analysis.filter_mocks()
             )  # return the first instance of the call, we don't care about the rest.
