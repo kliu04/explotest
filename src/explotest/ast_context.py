@@ -15,4 +15,4 @@ class ASTContext:
 
     @property
     def all_files(self) -> list[ASTFile]:
-        return list(self.files.values())
+        return list(reversed(self.files.values()))

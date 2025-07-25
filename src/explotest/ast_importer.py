@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from explotest.__main__ import ASTContext
+    from explotest.ast_context import ASTContext
 from explotest.ast_file import ASTFile
 from explotest.ast_rewriter import ASTRewriterA
 

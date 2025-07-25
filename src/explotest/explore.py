@@ -8,6 +8,22 @@ from .helpers import Mode, is_running_under_test, sanitize_name
 from .test_generator import TestGenerator
 
 
+# TODO: temporary; need to integrate this under main explore module
+def explore_slice(func):
+    @functools.wraps(func)
+    # probably want to use the args as checks for DD
+    def wrapper(*args, **kwargs):
+        frame = inspect.currentframe().f_back
+        lineno = frame.f_lineno
+        filename = frame.f_code.co_filename
+        # want to call something here
+        wrapper.__data__ = lineno
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 def explore(func=None, mode=Mode.RECONSTRUCT):
 
     def _explore(_func):

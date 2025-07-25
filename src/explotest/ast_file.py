@@ -21,8 +21,8 @@ class ASTFile:
         self.executed_line_numbers = set()
 
     def transform(self, transformer: ASTTransformer) -> None:
-        self.node = transformer.transform(self)
-        self.node = ast.fix_missing_locations(self.node)
+        transformer.transform(self)
+        ast.fix_missing_locations(self.node)
 
     def annotate_execution(self) -> None:
         """
@@ -30,15 +30,11 @@ class ASTFile:
         """
         for node in ast.walk(self.node):
             if hasattr(node, "lineno"):
-                if node.lineno in self.executed_line_numbers:
-                    node.executed = True
-                else:
-                    node.executed = False
+                node.executed = node.lineno in self.executed_line_numbers
 
     def annotate_parent(self) -> None:
         """
         Annotates AST nodes with parent data.
-        :param node: AST node to annotate
         """
         self.node.parent = None
         for n in ast.walk(self.node):
@@ -51,3 +47,14 @@ class ASTFile:
     @property
     def unparse(self):
         return ast.unparse(self.node)
+
+    def __eq__(self, other):
+        if not isinstance(other, ASTFile):
+            return False
+        elif self is other:
+            return True
+        return (
+            self.filename == other.filename
+            and self.node == other.node
+            and self.executed_line_numbers == other.executed_line_numbers
+        )

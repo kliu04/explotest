@@ -9,6 +9,7 @@ Usage: python -m explotest <target.py>
 """
 
 import atexit
+import copy
 import importlib
 import os
 import sys
@@ -20,6 +21,8 @@ from explotest.ast_context import ASTContext
 from explotest.ast_importer import Finder
 from explotest.ast_pruner import ASTPruner
 from explotest.ast_rewriter import ASTRewriterB
+from explotest.ast_truncator import ASTTruncator
+from explotest.helpers import sanitize_name
 
 
 def is_lib_file(filepath: str) -> bool:
@@ -27,6 +30,8 @@ def is_lib_file(filepath: str) -> bool:
 
 
 def make_tracer(ctx: ASTContext) -> Callable:
+    counter = 1
+
     def _tracer(frame: types.FrameType, event, arg):
         """
         Hooks onto default tracer to add instrumentation for ExploTest.
@@ -54,6 +59,41 @@ def make_tracer(ctx: ASTContext) -> Callable:
             lineno = frame.f_lineno
             if event == "line":
                 ast_file.executed_line_numbers.add(lineno)
+
+            elif event == "call":
+                # entering a new module always has lineno 0
+                if lineno == 0:
+                    return _tracer
+                func_name = frame.f_code.co_name
+                func = frame.f_globals.get(func_name) or frame.f_locals.get(func_name)
+
+                if func is None:
+                    return _tracer
+
+                if hasattr(func, "__data__"):
+                    nonlocal counter
+
+                    for ast_file in ctx.all_files:
+
+                        cpy = copy.deepcopy(ast_file)
+                        # cut off everything past the call
+                        if ast_file.filename == path.name:
+                            output_path = (
+                                path.parent
+                                / f"test_{sanitize_name(func_name)}_{counter}.py"
+                            )
+                            with open(output_path, "w") as f:
+                                # prune ast based on execution paths
+                                cpy.transform(ASTPruner())
+                                # remove code after the call
+                                cpy.transform(ASTTruncator(func.__data__))
+                                # unpack compound statements
+                                cpy.transform(ASTRewriterB())
+
+                                f.write(cpy.unparse)
+                                f.write("\n\n")
+
+                    counter += 1
 
             return _tracer
         except Exception as ex:
@@ -97,15 +137,6 @@ def main():
     load_code(Path(script_dir), Path(target).stem, ctx)
     # runpy.run_path(os.path.abspath(target), run_name="__main__")
     sys.settrace(None)
-
-    for ast_file in ctx.all_files:
-        # prune ast based on execution paths
-        ast_file.transform(ASTPruner())
-
-        # unpack compound statements
-        ast_file.transform(ASTRewriterB())
-
-        print(ast_file.unparse)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from explotest.__main__ import make_tracer, ASTContext
+from explotest.__main__ import make_tracer
+from explotest.ast_context import ASTContext
 from explotest.ast_pruner import ASTPruner
 
 DIR = "./data"
