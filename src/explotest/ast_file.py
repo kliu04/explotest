@@ -11,14 +11,16 @@ from explotest.ast_transformer import ASTTransformer
 
 @dataclass
 class ASTFile:
-    filename: str
+    module: str
     node: ast.AST
     executed_line_numbers: set[int]
 
-    def __init__(self, filename, nodes):
-        self.filename = filename
+    def __init__(self, module, nodes, d):
+        # TODO: fixme
+        self.module = module
         self.node = nodes
         self.executed_line_numbers = set()
+        self.d = d
 
     def transform(self, transformer: ASTTransformer) -> None:
         transformer.transform(self)
@@ -47,14 +49,3 @@ class ASTFile:
     @property
     def unparse(self):
         return ast.unparse(self.node)
-
-    def __eq__(self, other):
-        if not isinstance(other, ASTFile):
-            return False
-        elif self is other:
-            return True
-        return (
-            self.filename == other.filename
-            and self.node == other.node
-            and self.executed_line_numbers == other.executed_line_numbers
-        )

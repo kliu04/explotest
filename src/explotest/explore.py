@@ -6,18 +6,23 @@ from pathlib import Path
 
 from .helpers import Mode, is_running_under_test, sanitize_name
 from .test_generator import TestGenerator
+from .trace_info import TraceInfo
 
 
 # TODO: temporary; need to integrate this under main explore module
 def explore_slice(func):
     @functools.wraps(func)
-    # probably want to use the args as checks for DD
     def wrapper(*args, **kwargs):
         frame = inspect.currentframe().f_back
         lineno = frame.f_lineno
-        filename = frame.f_code.co_filename
+        # grab formal signature of func
+        func_signature = inspect.signature(func)
+        # bind it to given args and kwargs
+        bound_args = func_signature.bind(*args, **kwargs)
+        # fill in default arguments, if needed
+        bound_args.apply_defaults()
         # want to call something here
-        wrapper.__data__ = lineno
+        wrapper.__data__ = TraceInfo(lineno, bound_args)
 
         return func(*args, **kwargs)
 
