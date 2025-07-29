@@ -36,9 +36,19 @@ def is_lib_file(filepath: str) -> bool:
 
 
 def ddmin(ast_file: ASTFile, arg: inspect.BoundArguments) -> ast.AST:
+    # FIXME: only works for 1 fut
+    """
+    :param ast_file: Representation of the file to delta debug
+    :param arg: run-time arguments of the function-under-test
+    :return: AST of the delta debugged file
+    """
     seen = set()
 
-    def get_max_lineno(node):
+    def get_max_lineno(node: ast.AST):
+        """
+        :param node: ast node
+        :return: the largest line number of the ast, if it exists
+        """
         return max(
             (n.lineno for n in ast.walk(node) if hasattr(n, "lineno")), default=0
         )
@@ -61,6 +71,13 @@ def ddmin(ast_file: ASTFile, arg: inspect.BoundArguments) -> ast.AST:
             return super().visit(node)
 
     def tracer2(frame, event, arg):
+        """
+        Adds the run-time arguments of the function-under-test to the set seen_args
+        :param frame: current stack frame
+        :param event: trace event
+        :param arg: unused
+        :return:
+        """
         if event == "call":
             fn = frame.f_globals.get(frame.f_code.co_name) or frame.f_locals.get(
                 frame.f_code.co_name
@@ -69,10 +86,17 @@ def ddmin(ast_file: ASTFile, arg: inspect.BoundArguments) -> ast.AST:
                 seen_args.append(fn.__data__.args)
         return tracer2
 
-    def run(node_ast):
+    def run(node_ast: ast.AST) -> bool:
+        """
+        Test if running node_ast produces the same run-time arguments as in seen_args (oracle)
+        :param node_ast: AST to run
+        :return: arguments are the same
+        """
         seen_args.clear()
         sys.settrace(tracer2)
 
+        # make a copy
+        # FIXME: figure out exactly what ast_file should contain
         ns = dill.loads(dill.dumps(ast_file.d))
         # remove variable store
         for k in list(ns):
@@ -87,6 +111,12 @@ def ddmin(ast_file: ASTFile, arg: inspect.BoundArguments) -> ast.AST:
         return arg in seen_args
 
     def ddmin2(tree: ast.AST, n: int) -> ast.AST:
+        """
+        Main delta debugging function
+        :param tree: AST of the program to delta debug
+        :param n: number of subsets
+        :return: AST of the delta debugged program
+        """
         # print(ast.unparse(tree))
         total_lines = get_max_lineno(tree)
         if total_lines == 0:
