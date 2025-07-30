@@ -11,16 +11,14 @@ from explotest.ast_transformer import ASTTransformer
 
 @dataclass
 class ASTFile:
-    module: str
+    filepath: str
     node: ast.AST
     executed_line_numbers: set[int]
 
-    def __init__(self, module, nodes, d):
-        # TODO: fixme
-        self.module = module
+    def __init__(self, filepath, nodes):
+        self.filepath = filepath
         self.node = nodes
         self.executed_line_numbers = set()
-        self.d = d
 
     def transform(self, transformer: ASTTransformer) -> None:
         transformer.transform(self)

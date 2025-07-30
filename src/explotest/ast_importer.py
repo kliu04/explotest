@@ -38,7 +38,7 @@ class Loader(importlib.abc.Loader):
                     src = f"import sys\nsys.argv = {sys.argv}\n" + src
 
             tree = ast.parse(src, module.__file__, "exec")
-            ast_file = ASTFile(module.__file__, tree, module.__dict__)
+            ast_file = ASTFile(module.__file__, tree)
             ast_file.transform(ASTRewriterA())
             ast_file.reparse()
             self.ctx.add(path, ast_file)

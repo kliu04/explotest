@@ -95,22 +95,15 @@ def ddmin(ast_file: ASTFile, arg: inspect.BoundArguments) -> ast.AST:
         seen_args.clear()
         sys.settrace(tracer2)
 
-        # make a copy
-        # FIXME: figure out exactly what ast_file should contain
-        ns = dill.loads(dill.dumps(ast_file.d))
-        # remove variable store
-        for k in list(ns):
-            if k not in {"__name__", "__file__", "__builtins__"}:
-                del ns[k]
         try:
             sys.call_tracing(
-                lambda: exec(compile(node_ast, ast_file.module, "exec"), ns), ()
+                lambda: exec(compile(node_ast, ast_file.filepath, "exec"), {}), ()
             )
         except:
             return False
         return arg in seen_args
 
-    def ddmin2(tree: ast.AST, n: int) -> ast.AST:
+    def ddmin2(tree: ast.AST, n: int, test: bool) -> ast.AST:
         """
         Main delta debugging function
         :param tree: AST of the program to delta debug
@@ -139,28 +132,30 @@ def ddmin(ast_file: ASTFile, arg: inspect.BoundArguments) -> ast.AST:
             return tree
         seen.add(tuple(boundaries))
 
-        # reduce to subset
-        for begin, end in boundaries:
-            sub = LineFilter(begin, end, keep=True).visit(copy.deepcopy(tree))
-            if run(sub):
-                return ddmin2(sub, 2)
+        if test:
+            # reduce to subset
+            for begin, end in boundaries:
+                sub = LineFilter(begin, end, keep=True).visit(copy.deepcopy(tree))
+                if run(sub):
+                    return ddmin2(sub, 2, True)
 
         # reduce to complement
         for begin, end in boundaries:
             comp = LineFilter(begin, end, keep=False).visit(copy.deepcopy(tree))
             if run(comp):
-                return ddmin2(comp, max(n - 1, 2))
+                return ddmin2(comp, max(n - 1, 2), False)
 
         # increase granularity
         if n < total_lines:
-            return ddmin2(tree, min(total_lines, 2 * n))
+            return ddmin2(tree, min(total_lines, 2 * n), True)
 
         return tree
 
     seen_args = []
 
-    print(ast.unparse(ddmin2(ast_file.node, 2)))
-    return ddmin2(ast_file.node, 2)
+    x = ddmin2(ast_file.node, 2, False)
+    print(ast.unparse(x))
+    return x
 
 
 def make_tracer(ctx: ASTContext) -> Callable:
