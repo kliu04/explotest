@@ -28,7 +28,7 @@ class PickleReconstructor(Reconstructor):
 
         generated_ast = cast(
             ast.AST,
-            # with open(pickled_path, "rb") as f:
+            # corresponds to with open(pickled_path, "rb") as f:
             ast.With(
                 items=[
                     ast.withitem(
@@ -44,7 +44,7 @@ class PickleReconstructor(Reconstructor):
                     )
                 ],
                 body=[
-                    # parameter = dill.loads(f.read())
+                    # corresponds to parameter = dill.loads(f.read())
                     ast.Assign(
                         targets=[ast.Name(id=parameter, ctx=ast.Store())],
                         value=ast.Call(

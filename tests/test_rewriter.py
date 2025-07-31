@@ -25,10 +25,10 @@ n = len(list(pathlist)) + 1
 
 @pytest.mark.parametrize("example_name", [f"rewriter_a_input_{i}" for i in range(1, n)])
 def test_rewriter_a(example_name, setup_example):
-    rewriter = ASTRewriterA(ASTFile(example_name, setup_example(example_name)))
-    result = rewriter.rewrite()
+    ast_file = ASTFile(example_name, setup_example(example_name))
+    ast_file.transform(ASTRewriterA())
     expected_name = example_name.replace("input", "expected")
-    assert ast.dump(result) == ast.dump(setup_example(expected_name))
+    assert ast.dump(ast_file.node) == ast.dump(setup_example(expected_name))
 
 
 pathlist = Path(DIR).glob(f"*rewriter_b_input*.py")
@@ -49,7 +49,7 @@ def fake_uuid():
 @pytest.mark.parametrize("example_name", [f"rewriter_b_input_{i}" for i in range(1, n)])
 def test_rewriter_b(example_name, setup_example, monkeypatch, fake_uuid):
     monkeypatch.setattr(uuid, "uuid4", fake_uuid)
-    rewriter = ASTRewriterB(ASTFile(example_name, setup_example(example_name)))
-    result = rewriter.rewrite()
+    ast_file = ASTFile(example_name, setup_example(example_name))
+    ast_file.transform(ASTRewriterB())
     expected_name = example_name.replace("input", "expected")
-    assert ast.dump(result) == ast.dump(setup_example(expected_name))
+    assert ast.dump(ast_file.node) == ast.dump(setup_example(expected_name))

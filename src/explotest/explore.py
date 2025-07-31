@@ -17,6 +17,27 @@ from .global_state_detector import find_global_vars, find_function_def
 from .event_analyzer_for_global_state import EventAnalyzer
 from .helpers import Mode, is_running_under_test, sanitize_name
 from .test_generator import TestGenerator
+from .trace_info import TraceInfo
+
+
+# TODO: temporary; need to integrate this under main explore module
+def explore_slice(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        frame = inspect.currentframe().f_back
+        lineno = frame.f_lineno
+        # grab formal signature of func
+        func_signature = inspect.signature(func)
+        # bind it to given args and kwargs
+        bound_args = func_signature.bind(*args, **kwargs)
+        # fill in default arguments, if needed
+        bound_args.apply_defaults()
+
+        wrapper.__data__ = TraceInfo(lineno, bound_args)
+
+        return func(*args, **kwargs)
+
+    return wrapper
 
 from .argument_reconstruction_reconstructor import ArgumentReconstructionReconstructor
 

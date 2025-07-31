@@ -1,74 +1,260 @@
 """
-Used only for slicing!
-Sets up tracer that will track every executed line
+Runs the ExploTest dynamic tracer and AST rewriter pipeline.
+
+Namely:
+- Sets a tracing hook to monitor executed lines during program execution.
+- Applies pruning and rewriting passes to simplify the AST using both static and dynamic data.
+
+Usage: python -m explotest <target.py>
 """
 
 import ast
 import atexit
+import copy
 import importlib
+import inspect
 import os
 import sys
 import types
 from pathlib import Path
+from typing import Callable
 
-from explotest.ast_importer import Finder, tracked_files
+import dill
+
+from explotest.ast_context import ASTContext
+from explotest.ast_file import ASTFile
+from explotest.ast_importer import Finder
 from explotest.ast_pruner import ASTPruner
 from explotest.ast_rewriter import ASTRewriterB
+from explotest.ast_truncator import ASTTruncator
+from explotest.helpers import sanitize_name
+from explotest.trace_info import TraceInfo
 
 
 def is_lib_file(filepath: str) -> bool:
     return any(substring in filepath for substring in ("3.13", ".venv", "<frozen"))
 
 
-def tracer(frame: types.FrameType, event, arg):
+def ddmin(ast_file: ASTFile, arg: inspect.BoundArguments) -> ast.AST:
+    # FIXME: only works for 1 fut
     """
-    #     Hooks onto Python default tracer to add instrumentation for ExploTest.
-    #     :param frame:
-    #     :param event:
-    #     :param __arg:
-    #     :return: must return this object for tracing to work
+    :param ast_file: Representation of the file to delta debug
+    :param arg: run-time arguments of the function-under-test
+    :return: AST of the delta debugged file
     """
-    filename = frame.f_code.co_filename
-    try:
+    seen = set()
+
+    def get_max_lineno(node: ast.AST):
+        """
+        :param node: ast node
+        :return: the largest line number of the ast, if it exists
+        """
+        return max(
+            (n.lineno for n in ast.walk(node) if hasattr(n, "lineno")), default=0
+        )
+
+    # subset transformer
+    class LineFilter(ast.NodeTransformer):
+        def __init__(self, begin, end, keep: bool):
+            super().__init__()
+            self.begin = begin
+            self.end = end
+            self.keep = keep
+
+        def visit(self, node):
+            # if this node has a lineno, decide to keep or drop it
+            if hasattr(node, "lineno"):
+                in_range = self.begin <= node.lineno <= self.end
+                # drop if in range and do not keep, or out of range and keep
+                if in_range != self.keep:
+                    return None
+            return super().visit(node)
+
+    def tracer2(frame, event, arg):
+        """
+        Adds the run-time arguments of the function-under-test to the set seen_args
+        :param frame: current stack frame
+        :param event: trace event
+        :param arg: unused
+        :return:
+        """
+        if event == "call":
+            fn = frame.f_globals.get(frame.f_code.co_name) or frame.f_locals.get(
+                frame.f_code.co_name
+            )
+            if hasattr(fn, "__data__"):
+                seen_args.append(fn.__data__.args)
+        return tracer2
+
+    def run(node_ast: ast.AST) -> bool:
+        """
+        Test if running node_ast produces the same run-time arguments as in seen_args (oracle)
+        :param node_ast: AST to run
+        :return: arguments are the same
+        """
+        seen_args.clear()
+        sys.settrace(tracer2)
+
+        try:
+            sys.call_tracing(
+                lambda: exec(compile(node_ast, ast_file.filepath, "exec"), {}), ()
+            )
+        except:
+            return False
+        return arg in seen_args
+
+    def ddmin2(tree: ast.AST, n: int, test: bool) -> ast.AST:
+        """
+        Main delta debugging function
+        :param tree: AST of the program to delta debug
+        :param n: number of subsets
+        :return: AST of the delta debugged program
+        """
+        # print(ast.unparse(tree))
+        total_lines = get_max_lineno(tree)
+        if total_lines == 0:
+            raise Exception("something bad happened :(")
+
+        tree = ast.parse(ast.unparse(tree))
+
+        # compute chunk boundaries, distributing remainder
+        base, rem = divmod(total_lines, n)
+        boundaries = []
+        start = 1
+        for i in range(n):
+            size = base + (1 if i < rem else 0)
+            end = start + size - 1
+            boundaries.append((start, end))
+            start = end + 1
+
+        # optimization
+        if tuple(boundaries) in seen:
+            return tree
+        seen.add(tuple(boundaries))
+
+        if test:
+            # reduce to subset
+            for begin, end in boundaries:
+                sub = LineFilter(begin, end, keep=True).visit(copy.deepcopy(tree))
+                if run(sub):
+                    return ddmin2(sub, 2, True)
+
+        # reduce to complement
+        for begin, end in boundaries:
+            comp = LineFilter(begin, end, keep=False).visit(copy.deepcopy(tree))
+            if run(comp):
+                return ddmin2(comp, max(n - 1, 2), False)
+
+        # increase granularity
+        if n < total_lines:
+            return ddmin2(tree, min(total_lines, 2 * n), True)
+
+        return tree
+
+    seen_args = []
+
+    x = ddmin2(ast_file.node, 2, False)
+    print(ast.unparse(x))
+    return x
+
+
+def make_tracer(ctx: ASTContext) -> Callable:
+    counter = 1
+
+    def _tracer(frame: types.FrameType, event, arg):
+        """
+        Hooks onto default tracer to add instrumentation for ExploTest.
+        :param frame: the current python frame
+        :param event: the current event (one-of "line", "call", "return")
+        :param arg: currently not used
+        :return: must return this object for tracing to work
+        """
+        filename = frame.f_code.co_filename
         # ignore files we don't have access to
         if is_lib_file(filename):
             # print(f"[skip] {filename}")
-            return tracer
+            return _tracer
 
         path = Path(filename)
         path.resolve()
 
         # grab the tracker for the current file
-        t = tracked_files.get(path)
-        if t is None:
-            # print(f"[no tracker] {path}")
-            return tracer
+        ast_file = ctx.get(path)
+        if ast_file is None:
+            return _tracer
 
+        # mark lineno as executed
         lineno = frame.f_lineno
         if event == "line":
-            # add lineno as executed
-            t.executed_line_numbers.add(lineno)
+            ast_file.executed_line_numbers.add(lineno)
 
-        return tracer
-    except Exception as ex:
-        print(f"[error] {filename}:{event}: {ex}")
-        return None
+        elif event == "call":
+            # entering a new module always has lineno 0
+            if lineno == 0:
+                return _tracer
+            func_name = frame.f_code.co_name
+            func = frame.f_globals.get(func_name) or frame.f_locals.get(func_name)
+
+            if func is None:
+                return _tracer
+
+            if hasattr(func, "__data__"):
+                nonlocal counter
+                # deep copy
+                cpy = dill.loads(dill.dumps(ast_file))
+                # cut off everything past the call
+                output_path = (
+                    path.parent / f"test_{sanitize_name(func_name)}_{counter}.py"
+                )
+
+                # actually, this should be the AST file of the caller -- not the callee
+                # TODO: above
+                with open(output_path, "w") as f:
+                    # prune ast based on execution paths
+                    cpy.transform(ASTPruner())
+                    # remove code after the call
+                    trace_info: TraceInfo = func.__data__
+                    print("hello")
+                    cpy.transform(ASTTruncator(trace_info.lineno))
+
+                    # unpack compound statements
+                    cpy.transform(ASTRewriterB())
+
+                    with open(
+                        f"delta_debugger_ast_file_input_{counter}.pkl", "wb"
+                    ) as a:
+                        a.write(dill.dumps(ast_file))
+                    with open(f"delta_debugger_args_input_{counter}.pkl", "wb") as b:
+                        b.write(dill.dumps(trace_info.args))
+                    ddmin(ast_file, trace_info.args)
+                    sys.settrace(_tracer)
+
+                    f.write(cpy.unparse)
+                    f.write("\n\n")
+
+                counter += 1
+
+        return _tracer
+
+    return _tracer
 
 
-def load_code(root_path: Path, module_name: str):
+def load_code(root_path: Path, module_name: str, ctx: ASTContext):
     """Load user code, patch function calls."""
-    finder = Finder(root_path)
+    finder = Finder(root_path, ctx)
     try:
         # insert our custom finder into the "meta-path", import the module
         sys.meta_path.insert(0, finder)
         return importlib.import_module(module_name)
-    except Exception as ex:
-        print(f"[error] {module_name}:{ex}")
     finally:
         sys.meta_path.pop(0)
 
 
 def main():
+    import time
+
+    start = time.time()
+
     if len(sys.argv) < 2:
         print("Usage: python3 -m explotest <filename>")
         sys.exit(1)
@@ -81,38 +267,18 @@ def main():
     sys.path.insert(0, script_dir)
 
     # TODO: make this work for modules
+    ctx = ASTContext()
+    tracer = make_tracer(ctx)
     sys.settrace(tracer)
     atexit.register(lambda: sys.settrace(None))
     # the next line will run the code and rewriterA
-    load_code(Path(script_dir), Path(target).stem)
+    load_code(Path(script_dir), Path(target).stem, ctx)
     # runpy.run_path(os.path.abspath(target), run_name="__main__")
     sys.settrace(None)
 
-    # after running is complete
-    for tf in tracked_files.values():
-        pruner = ASTPruner()
-        # nodes is the AST repr of the file
-        nodes = tf.nodes
-        # walk the AST; add attributes to nodes whose lines have been executed
-        for node in ast.walk(nodes):
-            if hasattr(node, "lineno"):
-                if node.lineno in tf.executed_line_numbers:
-                    node.executed = True
-                else:
-                    node.executed = False
+    end = time.time()
 
-        # prune ifs, etc.
-        nodes = pruner.visit(tf.nodes)
-        nodes = ast.fix_missing_locations(nodes)
-        tf.nodes = nodes
-
-        # more rewriting for simplifying grammars
-        rewriter = ASTRewriterB(tf)
-        nodes = rewriter.rewrite()
-        nodes = ast.fix_missing_locations(nodes)
-
-        # Create new module with flattened statements
-        print(ast.unparse(nodes))
+    print(end - start)
 
 
 if __name__ == "__main__":
