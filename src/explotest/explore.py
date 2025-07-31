@@ -21,7 +21,7 @@ def explore_slice(func):
         bound_args = func_signature.bind(*args, **kwargs)
         # fill in default arguments, if needed
         bound_args.apply_defaults()
-        # want to call something here
+
         wrapper.__data__ = TraceInfo(lineno, bound_args)
 
         return func(*args, **kwargs)

@@ -214,11 +214,18 @@ def make_tracer(ctx: ASTContext) -> Callable:
                     cpy.transform(ASTPruner())
                     # remove code after the call
                     trace_info: TraceInfo = func.__data__
+                    print("hello")
                     cpy.transform(ASTTruncator(trace_info.lineno))
 
                     # unpack compound statements
                     cpy.transform(ASTRewriterB())
 
+                    with open(
+                        f"delta_debugger_ast_file_input_{counter}.pkl", "wb"
+                    ) as a:
+                        a.write(dill.dumps(ast_file))
+                    with open(f"delta_debugger_args_input_{counter}.pkl", "wb") as b:
+                        b.write(dill.dumps(trace_info.args))
                     ddmin(ast_file, trace_info.args)
                     sys.settrace(_tracer)
 
