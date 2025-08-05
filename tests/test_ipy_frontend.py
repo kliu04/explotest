@@ -114,7 +114,7 @@ def test_import_analysis(tg: FrontEnd):
     assert expected == {unparse(o) for o in tg.repl_imports}
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 def test_filtering_ctor(run_program, lineno):
     tg = FrontEnd(run_program, lineno, (6, 8))
     assert len(tg.history) == 3

@@ -1,6 +1,8 @@
 import dill
 import pytest
+
 import linkedlist
+
 
 @pytest.fixture
 def generate_x():

@@ -1,5 +1,3 @@
-import dill
-import pytest
 import mock_top_level_packabe
 
 def test_target():

@@ -10,7 +10,6 @@ from .generated_test import GeneratedTest
 from .helpers import Mode
 from .helpers import sanitize_name
 from .pickle_reconstructor import PickleReconstructor
-from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 from .slice_reconstructor import SliceReconstructor
 

@@ -4,7 +4,6 @@ from ast import parse
 
 import openai
 import pytest
-
 import requests
 from dotenv import load_dotenv
 

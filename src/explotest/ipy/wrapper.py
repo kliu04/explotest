@@ -1,42 +1,36 @@
-import ast
-from pathlib import Path
-
 import IPython
 import IPython.core.magic_arguments
 from IPython.core.magic_arguments import magic_arguments, argument
 
-from src.explotest.helpers import Mode
-from .frontend import FrontEnd
-from ..test_generator import TestGenerator
+from explotest import Mode, explore
 
 
 def generate_tests_wrapper(ipython: IPython.InteractiveShell):
     @magic_arguments()
-    @argument(
-        "-f",
-        dest="filename",
-        help="""
-        FILENAME: instead of printing the output to the screen, redirect
-        it to the given file.  The file is always overwritten, though *when
-        it can*, IPython asks for confirmation first. In particular, running
-        the command 'history -f FILENAME' from the IPython Notebook
-        interface will replace FILENAME even if it already exists *without*
-        confirmation.
-        """,
-    )
-    @argument(
-        "--lineno",
-        dest="lineno",
-        help="""
-        Target line number.
-        """,
-    )
+    # @argument(
+    #     "-f",
+    #     dest="filename",
+    #     help="""
+    #     FILENAME: instead of printing the output to the screen, redirect
+    #     it to the given file.  The file is always overwritten, though *when
+    #     it can*, IPython asks for confirmation first. In particular, running
+    #     the command 'history -f FILENAME' from the IPython Notebook
+    #     interface will replace FILENAME even if it already exists *without*
+    #     confirmation.
+    #     """,
+    # )
     @argument(
         "--mode",
         dest="mode",
         help="""
         The method to re-create the args with.
         """,
+    )
+    @argument(
+        "--function",
+        dest="function",
+        help="""
+    test""",
     )
     # @argument(
     #     '--start',
@@ -63,16 +57,13 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
             mode = Mode.SLICE
             raise NotImplementedError("Slice is not implemented yet.")
 
-        ipy_frontend = FrontEnd(ipython, int(args.lineno))
+        function_name: str = args.function
 
-        tg = TestGenerator(ipy_frontend.call_on_lineno.func.id, Path("."), mode)
-        generated_test = tg.generate(
-            ipy_frontend.function_params_and_args(),
-            definitions=[ipy_frontend.function_def],
-            injected_imports=ipy_frontend.repl_imports,
-        )
-        with open(args.filename, "w+") as file:
-            file.write(ast.unparse(generated_test.ast_node))
-        return generated_test
+        print(f"function_name {function_name}")
+        history = ipython.history_manager.get_range(output=True)
+        for entry in history:
+            print(entry)
+
+        return explore(func=args.function, mode=mode)
 
     return generate_tests

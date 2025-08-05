@@ -1,8 +1,9 @@
-import dill
-import pytest
 from math import sin, pi
+
+import dill
 import pandas as pd
-import numpy as np
+import pytest
+
 
 def tr_rule(f: pd.Series, x: pd.Series, dx: float, R: int):
     return 2 / pi * dx * (1 / 2 * f.iloc[0] * sin(R * x.iloc[0]) + sum(f.iloc[1:-1] * (x.iloc[1:-1] * R).map(sin)) + 1 / 2 * f.iloc[-1] * sin(R * x.iloc[-1]))

@@ -1,10 +1,9 @@
+import ast
 import os
-from typing import Any, Generator
+
 import numpy as np
 import openai
 import pytest
-import ast
-
 from dotenv import load_dotenv
 
 from explotest.event_analyzer_for_global_state import EventAnalyzer

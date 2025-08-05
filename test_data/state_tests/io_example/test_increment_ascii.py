@@ -1,10 +1,7 @@
-import builtins
-
-import dill
 import pytest
-import io_ex
-from unittest.mock import patch
 from pytest_mock import MockerFixture
+
+import io_ex
 
 
 def test_increment_ascii(mocked_open):

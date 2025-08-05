@@ -5,20 +5,17 @@ import functools
 import inspect
 import os
 from pathlib import Path
+from typing import Any
 
 import openai
 from dotenv import load_dotenv
 
-from typing import Any
-
-from .pickle_reconstructor import PickleReconstructor
-from .global_state_detector import find_global_vars, find_function_def
-
-from .event_analyzer_for_global_state import EventAnalyzer
-from .helpers import Mode, is_running_under_test, sanitize_name
-from .test_generator import TestGenerator
-
 from .argument_reconstruction_reconstructor import ArgumentReconstructionReconstructor
+from .event_analyzer_for_global_state import EventAnalyzer
+from .global_state_detector import find_global_vars, find_function_def
+from .helpers import Mode, is_running_under_test, sanitize_name
+from .pickle_reconstructor import PickleReconstructor
+from .test_generator import TestGenerator
 
 
 def explore(func=None, mode=Mode.RECONSTRUCT):
