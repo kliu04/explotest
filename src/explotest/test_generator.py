@@ -3,8 +3,6 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
 
-from explotest.null_reconstructor import NullReconstructor
-
 from .argument_reconstruction_reconstructor import (
     ArgumentReconstructionReconstructor,
 )
