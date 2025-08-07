@@ -17,7 +17,7 @@ import numpy as np
 
         """,
         """
-values = pd.read_csv(r"./A17.csv", names=[r"f"])
+values = pd.read_csv(r"./data/A17.csv", names=[r"f"])
         """,
         """
 n = values.iloc[-1].name
