@@ -11,8 +11,25 @@ class Mode(Enum):
     """The mode that ExploTest runs in; one of pickling, [argument] reconstructing, or slicing."""
 
     PICKLE = 1
-    RECONSTRUCT = 2
+    ARR = 2
     SLICE = 3
+
+    @classmethod
+    def from_string(cls, value: str):
+        normalized = value.strip().lower()
+        aliases = {
+            "pickle": cls.PICKLE,
+            "p": cls.PICKLE,
+            "arr": cls.ARR,
+            "a": cls.ARR,
+            "slice": cls.SLICE,
+            "s": cls.SLICE,
+        }
+        return aliases.get(normalized)
+
+
+def is_lib_file(filepath: str) -> bool:
+    return any(substring in filepath for substring in ("3.13", ".venv", "<frozen"))
 
 
 def random_id():
