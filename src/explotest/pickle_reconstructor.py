@@ -3,14 +3,14 @@ import os
 from dataclasses import dataclass
 from typing import cast
 
-import dill  # type: ignore
+import dill
 
 from .helpers import is_primitive, random_id
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 
 
-@dataclass(frozen=True)
+@dataclass
 class PickleReconstructor(Reconstructor):
 
     def _ast(self, parameter, argument) -> PyTestFixture:

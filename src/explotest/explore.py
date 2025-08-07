@@ -9,7 +9,7 @@ from .test_generator import TestGenerator
 from .trace_info import TraceInfo
 
 
-def explore(func=None, mode: str = "p"):
+def explore(func=None, /, mode: str = "p"):
 
     def _explore(_func):
         # if file is a test file, do nothing

@@ -3,6 +3,8 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
 
+from explotest.null_reconstructor import NullReconstructor
+
 from .argument_reconstruction_reconstructor import (
     ArgumentReconstructionReconstructor,
 )
@@ -11,7 +13,6 @@ from .helpers import Mode
 from .helpers import sanitize_name
 from .pickle_reconstructor import PickleReconstructor
 from .reconstructor import Reconstructor
-from .slice_reconstructor import SliceReconstructor
 
 
 class TestGenerator:
@@ -26,11 +27,13 @@ class TestGenerator:
 
         match mode:
             case Mode.ARR:
-                self.reconstructor = ArgumentReconstructionReconstructor(file_path)
+                self.reconstructor = ArgumentReconstructionReconstructor(
+                    file_path, PickleReconstructor
+                )
             case Mode.PICKLE:
                 self.reconstructor = PickleReconstructor(file_path)
-            case Mode.SLICE:
-                self.reconstructor = SliceReconstructor(file_path)
+            # case Mode.SLICE:
+            #     self.reconstructor = SliceReconstructor(file_path)
             case _:
                 raise Exception(f"Unknown Mode: {mode}")
 

@@ -2,23 +2,15 @@ import ast
 import inspect
 from collections import deque
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, cast
 
 from .helpers import is_primitive, is_collection, random_id
-from .pickle_reconstructor import PickleReconstructor
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 
 
-@dataclass(frozen=True)
+@dataclass
 class ArgumentReconstructionReconstructor(Reconstructor):
-
-    backup_reconstructor: PickleReconstructor
-
-    def __init__(self, file_path: Path):
-        # hacky way to get around frozen-ness
-        object.__setattr__(self, "backup_reconstructor", PickleReconstructor(file_path))
 
     def _ast(self, parameter, argument):
         # corresponds to: setattr(x, attribute_name, generate_attribute_value)
@@ -28,7 +20,8 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         elif ArgumentReconstructionReconstructor.is_reconstructible(argument):
             return self._reconstruct_object_instance(parameter, argument)
         else:
-            return self.backup_reconstructor._ast(parameter, argument)
+            backup = self.backup_reconstructor(self.file_path)
+            return backup._ast(parameter, argument)
 
     @staticmethod
     def is_reconstructible(obj: Any) -> bool:
@@ -191,10 +184,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         if is_collection(obj):
             return self._reconstruct_collection(parameter, obj)
 
-        module_path: str | None = inspect.getfile(type(obj))
-
-        module_path: Path = Path(module_path)  # type: ignore
-        module_name = module_path.stem  # type: ignore
+        module_name = self.file_path.stem
 
         class_name = obj.__class__.__name__
         # Build ast for: module_name.class_name.__new__(module_name.class_name)
