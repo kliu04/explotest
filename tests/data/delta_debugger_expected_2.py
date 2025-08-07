@@ -1,7 +1,7 @@
 import explotest
 
 
-@explotest.explore_slice
+@explotest.explore("s")
 def describe_match(key, actual, expected):
     return f"The key '{key}' was expected to be '{expected}' and it was actually '{actual}': Match = {actual == expected}"
 
