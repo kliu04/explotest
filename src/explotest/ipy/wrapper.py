@@ -60,9 +60,9 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
         function_name: str = args.function
 
         print(f"function_name {function_name}")
-        history = ipython.history_manager.get_range(output=True)
-        for entry in history:
-            print(entry)
+        # history = ipython.history_manager.get_range(output=True)
+        # for entry in history:
+        #     print(entry)
 
         return explore(func=args.function, mode=mode)
 
