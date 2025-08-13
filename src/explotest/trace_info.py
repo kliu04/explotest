@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-@dataclass(frozen=True)
+@dataclass
 class TraceInfo:
     """
     :param function_name: name of the function

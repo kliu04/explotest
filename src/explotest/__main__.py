@@ -7,14 +7,16 @@ Namely:
 
 Usage: python -m explotest <target.py>
 """
-
+import atexit
 import importlib
 import os
+import runpy
 import sys
 from pathlib import Path
 
 from explotest.ast_context import ASTContext
 from explotest.ast_importer import Finder
+from explotest.tracer import make_tracer
 
 
 def load_code(root_path: Path, module_name: str, ctx: ASTContext):
@@ -40,16 +42,17 @@ def main():
 
     script_dir = os.path.abspath(target_folder)
     sys.path.insert(0, script_dir)
-    import runpy
 
+    sys.settrace(make_tracer())
+    atexit.register(lambda: sys.settrace(None))
     runpy.run_path(os.path.abspath(target), run_name="__main__")
+    sys.settrace(None)
 
     # if not is_running_under_test():
     # TODO: make this work for modules
     # ctx = ASTContext()
     # tracer = make_tracer(ctx)
     # sys.settrace(tracer)
-    # atexit.register(lambda: sys.settrace(None))
     # # the next line will run the code and rewriterA
     # load_code(Path(script_dir), Path(target).stem, ctx)
     # sys.settrace(None)

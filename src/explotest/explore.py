@@ -3,13 +3,13 @@ import functools
 import inspect
 import os
 from pathlib import Path
+from typing import Literal, Callable
 
 from .helpers import Mode, is_running_under_test, sanitize_name
 from .test_generator import TestGenerator
-from .trace_info import TraceInfo
 
 
-def explore(func=None, /, mode: str = "p"):
+def explore(func: Callable = None, *, mode: Literal["s", "a", "p"] = "p"):
 
     def _explore(_func):
         # if file is a test file, do nothing
@@ -19,10 +19,9 @@ def explore(func=None, /, mode: str = "p"):
 
         # name of function under test
         qualified_name = _func.__qualname__
-
         file_path = Path(inspect.getsourcefile(_func))
-
         counter = 1
+        _func.__data__ = counter
 
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
@@ -37,31 +36,33 @@ def explore(func=None, /, mode: str = "p"):
 
             nonlocal counter
 
-            if mode == "s":
-                prev_frame = inspect.currentframe().f_back
-                lineno = prev_frame.f_lineno
-                wrapper.__data__ = TraceInfo(
-                    qualified_name,
-                    Path(prev_frame.f_code.co_filename),
-                    lineno,
-                    bound_args,
-                    counter,
-                )
-
-                counter += 1
-
-                return _func(*args, **kwargs)
-
-            # make and clear pickled directory
-            os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
-            for root, _, files in os.walk(f"{file_path.parent}/pickled"):
-                for file in files:
-                    os.remove(os.path.join(root, file))
-
             parsed_mode: Mode = Mode.from_string(mode)
+
+            # make pickled directory
+            os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
 
             if not parsed_mode:
                 raise KeyError("Please enter a valid mode.")
+
+            if parsed_mode == Mode.SLICE:
+                # TODO: probably a way to either remove/integrate this
+
+                # prev_frame = inspect.currentframe().f_back
+                # lineno = prev_frame.f_lineno
+                # wrapper.__data__ = TraceInfo(
+                #     qualified_name,
+                #     Path(prev_frame.f_code.co_filename),
+                #     lineno,
+                #     bound_args,
+                #     counter,
+                # )
+                #
+                #
+                # # print(wrapper.__data__)
+                #
+                # counter += 1
+
+                return _func(*args, **kwargs)
 
             tg = TestGenerator(qualified_name, file_path, parsed_mode)
 
