@@ -48,15 +48,6 @@ def main():
     runpy.run_path(os.path.abspath(target), run_name="__main__")
     sys.settrace(None)
 
-    # if not is_running_under_test():
-    # TODO: make this work for modules
-    # ctx = ASTContext()
-    # tracer = make_tracer(ctx)
-    # sys.settrace(tracer)
-    # # the next line will run the code and rewriterA
-    # load_code(Path(script_dir), Path(target).stem, ctx)
-    # sys.settrace(None)
-
 
 if __name__ == "__main__":
     main()

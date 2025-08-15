@@ -80,7 +80,10 @@ def make_tracer() -> Callable:
                     globals_file.write(dill.dumps(dict(cur_globals)))
                     locals_file.write(dill.dumps(dict(cur_locals)))
 
-                # no idea why it's 3
+                # frame^0 is the tracer
+                # frame^1 is the function-under-test
+                # frame^2 is the function wrapper
+                # frame^3 is the caller of the function
                 prev_caller = inspect.currentframe().f_back.f_back.f_back
 
                 # beginning of call block
