@@ -12,7 +12,6 @@ from .helpers import sanitize_name
 from .pickle_reconstructor import PickleReconstructor
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
-from .slice_reconstructor import SliceReconstructor
 
 
 class TestGenerator:
@@ -26,12 +25,14 @@ class TestGenerator:
         self.file_path = file_path
 
         match mode:
-            case Mode.RECONSTRUCT:
-                self.reconstructor = ArgumentReconstructionReconstructor(file_path)
+            case Mode.ARR:
+                self.reconstructor = ArgumentReconstructionReconstructor(
+                    file_path, PickleReconstructor
+                )
             case Mode.PICKLE:
                 self.reconstructor = PickleReconstructor(file_path)
-            case Mode.SLICE:
-                self.reconstructor = SliceReconstructor(file_path)
+            # case Mode.SLICE:
+            #     self.reconstructor = SliceReconstructor(file_path)
             case _:
                 raise Exception(f"Unknown Mode: {mode}")
 

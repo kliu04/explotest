@@ -1,7 +1,14 @@
 import ast
 
+from explotest.ast_file import ASTFile
+from explotest.ast_transformer import ASTTransformer
 
-class ASTPruner(ast.NodeTransformer):
+
+class ASTPruner(ast.NodeTransformer, ASTTransformer):
+
+    def transform(self, ast_file: ASTFile) -> ast.AST:
+        ast_file.annotate_execution()
+        return self.visit(ast_file.node)
 
     @staticmethod
     def check_executed(nodes: list[ast.AST]) -> bool:

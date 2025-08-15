@@ -1,24 +1,14 @@
 import ast
 import copy
-from abc import abstractmethod
+from abc import ABC
 from typing import cast
 
 from explotest import helpers
 from explotest.ast_file import ASTFile
+from explotest.ast_transformer import ASTTransformer
 
 
-class ASTRewriter(ast.NodeTransformer):
-
-    queue: list[tuple[list[ast.AST], ast.AST]]
-    ast_file: ASTFile
-
-    def __init__(self, ast_file: ASTFile):
-        self.queue = []
-        self.ast_file = ast_file
-
-    @abstractmethod
-    def rewrite(self): ...
-
+class ASTRewriter(ast.NodeTransformer, ASTTransformer, ABC):
     @staticmethod
     def is_simple(arg):
         return isinstance(arg, (ast.Constant, ast.Name))
@@ -55,6 +45,9 @@ class ASTRewriter(ast.NodeTransformer):
 
 class ASTRewriterA(ASTRewriter):
 
+    def transform(self, ast_file: ASTFile) -> ast.AST:
+        return self.visit(ast_file.node)
+
     def visit_Assign(self, node):
         self.generic_visit(node)
 
@@ -81,14 +74,15 @@ class ASTRewriterA(ASTRewriter):
             node.orelse = [new_node]
         return node
 
-    def rewrite(self):
-        node = self.ast_file.nodes
-        new_node = self.visit(node)
-        ast.fix_missing_locations(new_node)
-        return new_node
-
 
 class ASTRewriterB(ASTRewriter):
+
+    # list of (list of nodes to insert, rooted at node)
+    queue: list[tuple[list[ast.AST], ast.AST]]
+
+    def __init__(self):
+        self.queue = []
+
     def visit_Assign(self, node: ast.Assign):
         """
         unpacks tuple assignments and ifexp assignments
@@ -235,21 +229,10 @@ class ASTRewriterB(ASTRewriter):
 
         return node
 
-    def rewrite(self):
-        """
-        Use this instead of visit!!!
-        :return:
-        """
-        node = self.ast_file.nodes
-        node.parent = None
-        for n in ast.walk(node):
-            # mark nodes that are ran
-            for child in ast.iter_child_nodes(n):
-                child.parent = n
-
-        new_node = self.visit(node)
+    def transform(self, ast_file: ASTFile) -> ast.AST:
+        ast_file.annotate_parent()
+        new_node = self.visit(ast_file.node)
         for assignments, n in self.queue:
             ASTRewriter.insert_assignments(assignments, n)
-        ast.fix_missing_locations(new_node)
         self.queue.clear()
         return new_node

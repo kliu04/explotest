@@ -4,16 +4,17 @@ from abc import abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast, Dict, Any
+from typing import cast, Dict, Any, Self
 
 from .pytest_fixture import PyTestFixture
 
 
-@dataclass(frozen=True)
+@dataclass
 class Reconstructor(abc.ABC):
     """Transforms bindings of params and arguments back into code."""
 
-    file_path: Path  # path to write pickled files to
+    file_path: Path
+    backup_reconstructor: type[Self] | None = None
 
     def asts(self, bindings: Dict[str, Any]) -> list[PyTestFixture]:
         """:returns a list of PyTestFixture, which represents each parameter : argument pair"""

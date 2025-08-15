@@ -5,6 +5,7 @@ import functools
 import inspect
 import os
 from pathlib import Path
+from typing import Literal, Callable
 
 import openai
 from dotenv import load_dotenv
@@ -21,7 +22,7 @@ from .test_generator import TestGenerator
 from .argument_reconstruction_reconstructor import ArgumentReconstructionReconstructor
 
 
-def explore(func=None, mode=Mode.RECONSTRUCT):
+def explore(func: Callable = None, *, mode: Literal["s", "a", "p"] = "p"):
 
     def _explore(_func):
         # if file is a test file, do nothing
@@ -31,16 +32,9 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
 
         # name of function under test
         qualified_name = _func.__qualname__
-
         file_path = Path(inspect.getsourcefile(_func))
-
-        # make and clear pickled directory
-        os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
-        for root, _, files in os.walk(f"{file_path.parent}/pickled"):
-            for file in files:
-                os.remove(os.path.join(root, file))
-
         counter = 1
+        _func.__data__ = counter
 
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
@@ -53,9 +47,22 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
             # fill in default arguments, if needed
             bound_args.apply_defaults()
 
-            tg = TestGenerator(qualified_name, file_path, mode)
-
             nonlocal counter
+
+
+            parsed_mode: Mode = Mode.from_string(mode)
+
+            # make pickled directory
+            os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
+
+            if not parsed_mode:
+                raise KeyError("Please enter a valid mode.")
+
+            if parsed_mode == Mode.SLICE:
+                # TODO: probably a way to either remove/integrate this
+                return _func(*args, **kwargs)
+
+            tg = TestGenerator(qualified_name, file_path, parsed_mode)
 
             counter += 1
             # func_source = inspect.getsource(_func)
@@ -96,6 +103,7 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
 
             ptfs = mock_generator.asts(llm_result)
             generated_mocks = [p.ast_node for p in ptfs]
+
 
             # write test to a file
             with open(

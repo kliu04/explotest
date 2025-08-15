@@ -12,4 +12,6 @@ def foo(a: int) -> None:
         x = y
 
     print(x)
+
+
 foo(1)

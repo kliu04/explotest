@@ -58,7 +58,7 @@ def generate_tests_wrapper(ipython: IPython.InteractiveShell):
         if args.mode == "pickle":
             mode = Mode.PICKLE
         elif args.mode == "reconstruct":
-            mode = Mode.RECONSTRUCT
+            mode = Mode.ARR
         elif args.mode == "slice":
             mode = Mode.SLICE
             raise NotImplementedError("Slice is not implemented yet.")
