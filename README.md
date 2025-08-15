@@ -12,7 +12,7 @@ pip install ExploTest
 ### Local Installation
 
 ```bash
-python3 -m pip install -e .
+python3 -m pip install -e <path/to/explotest>
 ```
 
 ## Development Setup

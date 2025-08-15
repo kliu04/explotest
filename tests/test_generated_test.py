@@ -4,7 +4,7 @@ import pytest
 
 from src.explotest.generated_test import GeneratedTest
 from src.explotest.pytest_fixture import PyTestFixture
-from test_fixture_generation import sample_arg_reconstruct_body
+from .test_fixture_generation import sample_arg_reconstruct_body
 
 
 class TestGeneratedTest:
