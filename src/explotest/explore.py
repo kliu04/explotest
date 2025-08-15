@@ -46,22 +46,6 @@ def explore(func: Callable = None, *, mode: Literal["s", "a", "p"] = "p"):
 
             if parsed_mode == Mode.SLICE:
                 # TODO: probably a way to either remove/integrate this
-
-                # prev_frame = inspect.currentframe().f_back
-                # lineno = prev_frame.f_lineno
-                # wrapper.__data__ = TraceInfo(
-                #     qualified_name,
-                #     Path(prev_frame.f_code.co_filename),
-                #     lineno,
-                #     bound_args,
-                #     counter,
-                # )
-                #
-                #
-                # # print(wrapper.__data__)
-                #
-                # counter += 1
-
                 return _func(*args, **kwargs)
 
             tg = TestGenerator(qualified_name, file_path, parsed_mode)

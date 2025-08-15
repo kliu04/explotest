@@ -14,12 +14,12 @@ def make_tracer() -> Callable:
     cur_locals = {}
     cur_globals = {}
 
-    def _tracer(frame: types.FrameType, event: str, arg: Any):
+    def _tracer(frame: types.FrameType, event: str, _arg: Any):
         """
         Hooks onto default tracer to add instrumentation for ExploTest.
         :param frame: the current python frame
         :param event: the current event (one-of "line", "call", "return")
-        :param arg: currently not used
+        :param _arg: currently not used
         :return: must return this object for tracing to work
         """
         nonlocal cur_locals
@@ -43,6 +43,10 @@ def make_tracer() -> Callable:
         path.resolve()
 
         if event == "call":
+
+            if frame.f_lineno == 0:
+                return _tracer
+
             func_name = frame.f_code.co_name
             func = frame.f_globals.get(func_name) or frame.f_locals.get(func_name)
 
@@ -56,6 +60,19 @@ def make_tracer() -> Callable:
                 globals_path = f"{path.parent}/pickled/globals_{func_name}_{counter}_{globals_id}.pkl"
                 locals_path = f"{path.parent}/pickled/locals_{func_name}_{counter}_{locals_id}.pkl"
 
+                builtins = [
+                    "__doc__",
+                    "__package__",
+                    "__file__",
+                    "__loader__",
+                    "__spec__",
+                    "__annotations__",
+                    "__builtins__",
+                    "__cached__",
+                ]
+                for builtin_name in builtins:
+                    cur_globals.pop(builtin_name, None)
+                dill.settings["recurse"] = True
                 with (
                     open(globals_path, "wb") as globals_file,
                     open(locals_path, "wb") as locals_file,
@@ -238,55 +255,3 @@ def make_tracer() -> Callable:
         return _tracer
 
     return _tracer
-
-    # # grab the tracker for the current file
-    # ast_file = ctx.get(path)
-    # if ast_file is None:
-    #     return _tracer
-    #
-    # # mark lineno as executed
-    # lineno = frame.f_lineno
-    # if event == "line":
-    #     ast_file.executed_line_numbers.add(lineno)
-    #
-    # elif event == "call":
-    #     # entering a new module always has lineno 0
-    #     if lineno == 0:
-    #         return _tracer
-    #     func_name = frame.f_code.co_name
-    #     func = frame.f_globals.get(func_name) or frame.f_locals.get(func_name)
-    #
-    #     if func is None:
-    #         return _tracer
-    #
-    #     if hasattr(func, "__data__"):
-    #         nonlocal counter
-    #         cpy = copy.deepcopy(ast_file)
-    #         output_path = (
-    #             path.parent / f"test_{sanitize_name(func_name)}_{counter}.py"
-    #         )
-    #
-    #         # TODO: actually, this should be the AST file of the caller -- not the callee
-    #         with open(output_path, "w") as f:
-    #             # prune ast based on execution paths
-    #             cpy.transform(ASTPruner())
-    #             # remove code after the call
-    #             trace_info: TraceInfo = func.__data__
-    #
-    #             # cut off everything past the call
-    #             cpy.transform(ASTTruncator(trace_info.lineno))
-    #
-    #             # unpack compound statements
-    #             cpy.transform(ASTRewriterB())
-    #
-    #             print(
-    #                 ast.unparse(ddmin(ast_file, trace_info.args, EqualityOracle()))
-    #             )
-    #             sys.settrace(_tracer)
-    #
-    #             f.write(cpy.unparse)
-    #             f.write("\n\n")
-    #
-    #         counter += 1
-    #
-    # return _tracer
