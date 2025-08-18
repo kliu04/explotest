@@ -12,7 +12,7 @@ class Mode(Enum):
 
     PICKLE = 1
     ARR = 2
-    SLICE = 3
+    TRACE = 3
 
     @classmethod
     def from_string(cls, value: str):
@@ -22,8 +22,8 @@ class Mode(Enum):
             "p": cls.PICKLE,
             "arr": cls.ARR,
             "a": cls.ARR,
-            "slice": cls.SLICE,
-            "s": cls.SLICE,
+            "trace": cls.TRACE,
+            "t": cls.TRACE,
         }
         return aliases.get(normalized)
 
