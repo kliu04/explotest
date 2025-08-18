@@ -11,9 +11,6 @@ from explotest.helpers import is_lib_file, random_id
 
 
 def make_tracer() -> Callable:
-    cur_locals = {}
-    cur_globals = {}
-
     def _tracer(frame: types.FrameType, event: str, _arg: Any):
         """
         Hooks onto default tracer to add instrumentation for ExploTest.
@@ -22,8 +19,6 @@ def make_tracer() -> Callable:
         :param _arg: currently not used
         :return: must return this object for tracing to work
         """
-        nonlocal cur_locals
-        nonlocal cur_globals
         filename = frame.f_code.co_filename
 
         # ignore files we don't have access to
@@ -44,8 +39,8 @@ def make_tracer() -> Callable:
 
         if event == "call":
 
-            if frame.f_lineno == 0:
-                return _tracer
+            # if frame.f_lineno == 0:
+            #     return _tracer
 
             func_name = frame.f_code.co_name
             func = frame.f_globals.get(func_name) or frame.f_locals.get(func_name)
@@ -56,6 +51,16 @@ def make_tracer() -> Callable:
 
                 counter = func.__data__
                 func.__data__ += 1
+                
+                # frame^0 is the tracer
+                # frame^1 is the function-under-test
+                # frame^2 is the function wrapper
+                # frame^3 is the caller of the function
+                prev_caller = inspect.currentframe().f_back.f_back.f_back
+                prev_locals = prev_caller.f_locals
+                prev_globals = prev_caller.f_globals
+                
+                dill.settings["recurse"] = True
 
                 globals_path = f"{path.parent}/pickled/globals_{func_name}_{counter}_{globals_id}.pkl"
                 locals_path = f"{path.parent}/pickled/locals_{func_name}_{counter}_{locals_id}.pkl"
@@ -71,20 +76,13 @@ def make_tracer() -> Callable:
                     "__cached__",
                 ]
                 for builtin_name in builtins:
-                    cur_globals.pop(builtin_name, None)
-                dill.settings["recurse"] = True
+                    prev_globals.pop(builtin_name, None)
                 with (
                     open(globals_path, "wb") as globals_file,
                     open(locals_path, "wb") as locals_file,
                 ):
-                    globals_file.write(dill.dumps(dict(cur_globals)))
-                    locals_file.write(dill.dumps(dict(cur_locals)))
-
-                # frame^0 is the tracer
-                # frame^1 is the function-under-test
-                # frame^2 is the function wrapper
-                # frame^3 is the caller of the function
-                prev_caller = inspect.currentframe().f_back.f_back.f_back
+                    globals_file.write(dill.dumps(dict(prev_globals)))
+                    locals_file.write(dill.dumps(dict(prev_locals)))
 
                 # beginning of call block
                 begin_line = inspect.getsourcelines(prev_caller)[1]
@@ -210,7 +208,7 @@ def make_tracer() -> Callable:
                                                         ctx=ast.Load(),
                                                     )
                                                 ),
-                                                attr="f_locals",
+                                                attr="f_globals",
                                                 ctx=ast.Load(),
                                             ),
                                             attr="update",
@@ -251,10 +249,6 @@ def make_tracer() -> Callable:
 
                 with open(path.parent / f"test_{func_name}_{counter}.py", "w") as f:
                     f.write(ast.unparse(fd))
-
-            else:
-                cur_locals = frame.f_locals
-                cur_globals = frame.f_globals
         return _tracer
 
     return _tracer
