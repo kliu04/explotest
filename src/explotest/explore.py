@@ -22,7 +22,7 @@ from .test_generator import TestGenerator
 from .argument_reconstruction_reconstructor import ArgumentReconstructionReconstructor
 
 
-def explore(func: Callable = None, *, mode: Literal["s", "a", "p"] = "p"):
+def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
 
     def _explore(_func):
         # if file is a test file, do nothing
@@ -51,6 +51,7 @@ def explore(func: Callable = None, *, mode: Literal["s", "a", "p"] = "p"):
 
 
             parsed_mode: Mode = Mode.from_string(mode)
+            print(parsed_mode)
 
             # make pickled directory
             os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
@@ -58,7 +59,7 @@ def explore(func: Callable = None, *, mode: Literal["s", "a", "p"] = "p"):
             if not parsed_mode:
                 raise KeyError("Please enter a valid mode.")
 
-            if parsed_mode == Mode.SLICE:
+            if parsed_mode == Mode.TRACE:
                 # TODO: probably a way to either remove/integrate this
                 return _func(*args, **kwargs)
 
