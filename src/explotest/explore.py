@@ -5,21 +5,18 @@ import functools
 import inspect
 import os
 from pathlib import Path
+from typing import Any
 from typing import Literal, Callable
 
 import openai
 from dotenv import load_dotenv
 
-from typing import Any
-
-from .pickle_reconstructor import PickleReconstructor
-from .global_state_detector import find_global_vars, find_function_def
-
-from .event_analyzer_for_global_state import EventAnalyzer
-from .helpers import Mode, is_running_under_test, sanitize_name
-from .test_generator import TestGenerator
-
 from .argument_reconstruction_reconstructor import ArgumentReconstructionReconstructor
+from .event_analyzer_for_global_state import EventAnalyzer
+from .global_state_detector import find_global_vars, find_function_def
+from .helpers import Mode, is_running_under_test, sanitize_name
+from .pickle_reconstructor import PickleReconstructor
+from .test_generator import TestGenerator
 
 
 def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
@@ -49,9 +46,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
 
             nonlocal counter
 
-
             parsed_mode: Mode = Mode.from_string(mode)
-            print(parsed_mode)
 
             # make pickled directory
             os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
