@@ -95,7 +95,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
 
             mock_generator = (
                 ArgumentReconstructionReconstructor(file_path)
-                if mode == "a"
+                if parsed_mode == Mode.RECONSTRUCT
                 else PickleReconstructor(file_path)
             )
 
