@@ -5,6 +5,8 @@ import functools
 import inspect
 import os
 from pathlib import Path
+from typing import Any
+from typing import Literal, Callable
 from typing import Any, TypeVar, Callable
 
 import openai
@@ -19,29 +21,19 @@ from .pickle_reconstructor import PickleReconstructor
 from .test_generator import TestGenerator
 
 
-F = TypeVar("F", bound=Callable[..., Any] | None)
+def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
 
-
-def explore(func: F = None, mode: Mode = Mode.RECONSTRUCT) -> F:
-
-    def _explore(_func: F) -> F:
-        # if explore appears twice in call chain, do nothing
+    def _explore(_func):
+        # if file is a test file, do nothing
         # (needed to avoid explotest generated code running on itself)
         if is_running_under_test():
             return _func
 
         # name of function under test
         qualified_name = _func.__qualname__
-
         file_path = Path(inspect.getsourcefile(_func))
-
-        # make and clear pickled directory
-        os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
-        for root, _, files in os.walk(f"{file_path.parent}/pickled"):
-            for file in files:
-                os.remove(os.path.join(root, file))
-
         counter = 1
+        _func.__data__ = counter
 
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
@@ -54,9 +46,21 @@ def explore(func: F = None, mode: Mode = Mode.RECONSTRUCT) -> F:
             # fill in default arguments, if needed
             bound_args.apply_defaults()
 
-            tg = TestGenerator(qualified_name, file_path, mode)
-
             nonlocal counter
+
+            parsed_mode: Mode = Mode.from_string(mode)
+
+            # make pickled directory
+            os.makedirs(f"{file_path.parent}/pickled", exist_ok=True)
+
+            if not parsed_mode:
+                raise KeyError("Please enter a valid mode.")
+
+            if parsed_mode == Mode.TRACE:
+                # TODO: probably a way to either remove/integrate this
+                return _func(*args, **kwargs)
+
+            tg = TestGenerator(qualified_name, file_path, parsed_mode)
 
             counter += 1
             # func_source = inspect.getsource(_func)
@@ -91,7 +95,7 @@ def explore(func: F = None, mode: Mode = Mode.RECONSTRUCT) -> F:
 
             mock_generator = (
                 ArgumentReconstructionReconstructor(file_path)
-                if mode == mode.RECONSTRUCT
+                if mode == "a"
                 else PickleReconstructor(file_path)
             )
 

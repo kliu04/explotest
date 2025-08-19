@@ -10,7 +10,7 @@ where = ["src"]
 
 [project]
 name = "ExploTest"
-version = "0.4.0"
+version = "0.6.1"
 authors = [{ name = "Kevin Liu", email = "kliu52@student.ubc.ca" },
     { name = "Randy Zhu", email = "randyzhu@student.ubc.ca" },
 ]

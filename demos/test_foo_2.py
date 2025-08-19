@@ -4,7 +4,7 @@ import meow
 
 @pytest.fixture
 def generate_big_bad_global():
-    with open('/Users/randyzhu/Desktop/2025S-Explotest/explotest/demos/pickled/big_bad_global_32007ac7.pkl', 'rb') as f:
+    with open('/Users/randyzhu/Desktop/2025S-Explotest/explotest/demos/pickled/big_bad_global_fe327187.pkl', 'rb') as f:
         big_bad_global = dill.loads(f.read())
     return big_bad_global
 
