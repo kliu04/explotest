@@ -138,6 +138,6 @@ def generate_assertion(
             )
 
         case AssertionToGenerate.TOTAL_EQUALITY_PICKLE:
-            return AssertionToGenerate([], [])  # todo: implement
+            return AssertionResult([], [])  # todo: implement
         case AssertionToGenerate.TOTAL_EQUALITY_ARR:
             return AssertionResult([], [])
