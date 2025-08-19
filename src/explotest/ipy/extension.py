@@ -71,7 +71,7 @@ class ExplotestMagics(Magics):
         )
 
         # Then call the wrapped function with the original arguments
-        call_body: ast.Call = function_call_ast.body 
+        call_body: ast.Call = function_call_ast.body
         new_call_with_explore = ast.Call(
             func=explore_call,
             args=call_body.args,
