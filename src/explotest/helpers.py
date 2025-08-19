@@ -1,6 +1,8 @@
-import sys
+import os
 import uuid
 from enum import Enum
+
+# from autoassert import runner_of_test
 from typing import Any
 
 collection_t = list | set | dict | tuple
@@ -48,4 +50,4 @@ def is_collection(x: Any) -> bool:
 
 def is_running_under_test():
     """Returns True iff the program-under-test is a test file. (Currently only supports pytest)"""
-    return "pytest" in sys.modules
+    return os.getenv("RUNNING_GENERATED_TEST") == "true"

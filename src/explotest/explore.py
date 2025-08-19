@@ -5,23 +5,27 @@ import functools
 import inspect
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar, Callable
 
 import openai
 from dotenv import load_dotenv
 
 from .argument_reconstruction_reconstructor import ArgumentReconstructionReconstructor
+from .autoassert.runner_of_test import TestRunner
 from .event_analyzer_for_global_state import EventAnalyzer
 from .global_state_detector import find_global_vars, find_function_def
-from .helpers import Mode, is_running_under_test, sanitize_name
+from .helpers import Mode, sanitize_name, is_running_under_test
 from .pickle_reconstructor import PickleReconstructor
 from .test_generator import TestGenerator
 
 
-def explore(func=None, mode=Mode.RECONSTRUCT):
+F = TypeVar("F", bound=Callable[..., Any] | None)
 
-    def _explore(_func):
-        # if file is a test file, do nothing
+
+def explore(func: F = None, mode: Mode = Mode.RECONSTRUCT) -> F:
+
+    def _explore(_func: F) -> F:
+        # if explore appears twice in call chain, do nothing
         # (needed to avoid explotest generated code running on itself)
         if is_running_under_test():
             return _func
@@ -68,7 +72,7 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
             eva = EventAnalyzer(
                 (_func.__name__, str(file_path)),
                 [
-                    external.name
+                    external.name  # external name is dead code
                     for external in find_global_vars(
                         ast.parse(open(str(file_path)).read()), _func.__name__
                     )
@@ -94,18 +98,31 @@ def explore(func=None, mode=Mode.RECONSTRUCT):
             ptfs = mock_generator.asts(llm_result)
             generated_mocks = [p.ast_node for p in ptfs]
 
+            mock_setup = TestGenerator.create_mocks(
+                {fixture.parameter: fixture for fixture in ptfs}
+            )
+
             # write test to a file
             with open(
                 f"{file_path.parent}/test_{sanitize_name(qualified_name)}_{counter}.py",
                 "w",
             ) as f:
-                f.write(
-                    ast.unparse(
-                        tg.generate(
-                            bindings=bound_args.arguments, definitions=generated_mocks
-                        ).ast_node
-                    )
+                generated_test = tg.generate(
+                    bindings=bound_args.arguments,
+                    definitions=generated_mocks + [mock_setup],
                 )
+                # generated_test.asserts = [ast.parse("return return_value")]
+                os.environ["RUNNING_GENERATED_TEST"] = "true"
+                tr = TestRunner(
+                    generated_test,
+                    str(_func.__name__),
+                    str(file_path),
+                    str(file_path.parent),
+                )
+                er = tr.run_test()
+                print(er)
+                del os.environ["RUNNING_GENERATED_TEST"]
+                f.write(ast.unparse(generated_test.ast_node))
             return res
 
         return wrapper

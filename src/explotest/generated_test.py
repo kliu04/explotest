@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from .pytest_fixture import PyTestFixture
 
 
-@dataclass(frozen=True)
+@dataclass
 class GeneratedTest:
     function_name: str
     imports: list[ast.Import | ast.ImportFrom]  # needed imports for the test file

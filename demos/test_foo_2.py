@@ -1,25 +1,16 @@
 import dill
 import pytest
-
-import linkedlist
-
+import meow
 
 @pytest.fixture
-def generate_list_of_obj():
-    list_of_obj = ["a"]
-    return list_of_obj
+def generate_big_bad_global():
+    with open('/Users/randyzhu/Desktop/2025S-Explotest/explotest/demos/pickled/big_bad_global_49ea7fd1.pkl', 'rb') as f:
+        big_bad_global = dill.loads(f.read())
+    return big_bad_global
 
+@pytest.fixture(autouse=True)
+def mock_setup(generate_big_bad_global):
+    global big_bad_global
 
-@pytest.fixture
-def generate_x():
-    with open(
-        "/Users/randyzhu/Desktop/2025S-Explotest/explotest/demos/pickled/x_1eb77c47.pkl",
-        "rb",
-    ) as f:
-        x = dill.loads(f.read())
-    return x
-
-
-def test_foo(generate_x):
-    x = generate_x
-    return_value = linkedlist.foo(x)
+def test_foo():
+    return_value = meow.foo()

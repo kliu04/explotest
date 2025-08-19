@@ -61,8 +61,7 @@ class FrontEnd(ABC):
         session: Iterable[tuple[int, int, tuple[str, str | None]]] = list(
             shell.history_manager.get_range(output=True)
         )
-        print(map(lambda t: t[2], session))
-        print(shell.user_ns.get("Out", {}))
+
         self.history = IPythonExecutionHistory(session)
 
         """

@@ -10,6 +10,7 @@ from .generated_test import GeneratedTest
 from .helpers import Mode
 from .helpers import sanitize_name
 from .pickle_reconstructor import PickleReconstructor
+from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 from .slice_reconstructor import SliceReconstructor
 
@@ -53,11 +54,64 @@ class TestGenerator:
         return imports
 
     @staticmethod
-    def create_mocks(ptf_mapping: list[str]) -> ast.FunctionDef:
+    def create_mocks(ptf_mapping: dict[str, PyTestFixture]) -> ast.FunctionDef:
         """
         Creates a function that uses the mock_ptf_names
         """
-        return ast.FunctionDef(name="test", args=ast.arguments(), body=[])
+        defn = ast.FunctionDef(
+            name="mock_setup",
+            args=ast.arguments(
+                args=[
+                    ast.arg(arg=f"generate_{fixture.parameter}")
+                    for fixture in ptf_mapping.values()
+                ]
+            ),
+            body=(
+                [ast.Global(names=ptf_mapping.keys())]
+                if len(ptf_mapping) > 0
+                else []
+                + [
+                    ast.Assign(
+                        targets=[ast.Name(id=name, ctx=ast.Store())],
+                        value=ast.Name(
+                            id=f"generate_{fixture.parameter}", ctx=ast.Load()
+                        ),
+                    )
+                    for name, fixture in ptf_mapping.items()
+                ]
+                + [ast.Import(names=[ast.alias(name="os")])]
+                + [
+                    ast.Assign(
+                        targets=[
+                            ast.Subscript(
+                                value=ast.Attribute(
+                                    value=ast.Name(id="os", ctx=ast.Load()),
+                                    attr="environ",
+                                    ctx=ast.Load(),
+                                ),
+                                slice=ast.Constant(value="RUNNING_GENERATED_TEST"),
+                                ctx=ast.Store(),
+                            )
+                        ],
+                        value=ast.Constant(value="true"),
+                    )
+                ]
+            ),
+            decorator_list=[
+                ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="pytest", ctx=ast.Load()),
+                        attr="fixture",
+                        ctx=ast.Load(),
+                    ),
+                    keywords=[
+                        ast.keyword(arg="autouse", value=ast.Constant(value=True))
+                    ],
+                )
+            ],
+        )
+
+        return ast.fix_missing_locations(defn)
 
     def generate(
         self,

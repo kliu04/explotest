@@ -96,7 +96,7 @@ class LLMAnalyzer:
 {name}
 </name>
 """
-            print(f"Prompting... {prompt}")
+            # print(f"Prompting... {prompt}")
             query = self.llm.chat.completions.create(
                 model=self.model,
                 reasoning_effort="medium",
