@@ -1,5 +1,3 @@
-from typing import Self
-
 from explotest import explore, Mode
 
 

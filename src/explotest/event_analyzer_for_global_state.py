@@ -30,6 +30,7 @@ class EventAnalyzer:
     TOOL_NAME = "explotest_mock_tracker"
     llm: openai.OpenAI
     model: str
+    candidate_mock_modules: list[str] | None = None
 
     def __init__(
         self,
@@ -99,6 +100,7 @@ class EventAnalyzer:
                 ):
                     # print(f"name: {name}, value: {value}")
                     self.globals_by_frame_id[id(parent_frame)][name] = value
+                    print(inspect.getmodule(value))
                 # breakpoint()
             self.return_data.append((code, instruction_offset, retval))
 
@@ -118,8 +120,9 @@ class EventAnalyzer:
         # return self.globals_by_frame_id
         for frame_id, var_map in self.globals_by_frame_id.items():
             llm_analysis = LLMAnalyzer(self.llm, self.fn_def, var_map, self.model)
-            print(f"============ FRAME_ID: {frame_id} ============")
-            print(f"varmap: {var_map}")
+            # breakpoint()
+            # print(f"============ FRAME_ID: {frame_id} ============")
+            # print(f"varmap: {var_map}")
             return (
                 llm_analysis.filter_mocks()
             )  # return the first instance of the call, we don't care about the rest.

@@ -17,7 +17,7 @@ import numpy as np
 
         """,
         """
-values = pd.read_csv(r"./A17.csv", names=[r"f"])
+values = pd.read_csv(r"./data/A17.csv", names=[r"f"])
         """,
         """
 n = values.iloc[-1].name
@@ -114,7 +114,7 @@ def test_import_analysis(tg: FrontEnd):
     assert expected == {unparse(o) for o in tg.repl_imports}
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 def test_filtering_ctor(run_program, lineno):
     tg = FrontEnd(run_program, lineno, (6, 8))
     assert len(tg.history) == 3

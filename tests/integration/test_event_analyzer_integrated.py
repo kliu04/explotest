@@ -1,15 +1,13 @@
+import ast
 import os
 import pathlib
 
 import openai
 import pytest
-import pytest_mock
 from pytest_mock import MockerFixture
 
 import src.explotest.event_analyzer_for_global_state as eva
 import src.explotest.global_state_detector as gsd
-import ast
-
 import test_data.test_event_analyzer.simpleflask
 
 
