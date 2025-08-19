@@ -70,9 +70,7 @@ class TestGenerator:
             body=(
                 [ast.Global(names=ptf_mapping.keys())]
                 if len(ptf_mapping) > 0
-                (
-                    [ast.Global(names=ptf_mapping.keys())] if len(ptf_mapping) > 0 else []
-                )
+                else []
                 + [
                     ast.Assign(
                         targets=[ast.Name(id=name, ctx=ast.Store())],
