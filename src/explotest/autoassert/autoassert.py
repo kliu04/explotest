@@ -117,7 +117,7 @@ def generate_assertion(
                             ),
                             ops=[ast.Eq()],
                             comparators=[
-                                ast.Constant(value=ast.Constant(value=len(value)))
+                                ast.Constant(value=len(value))
                             ],
                         )
                     )
