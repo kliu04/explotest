@@ -5,14 +5,13 @@ import functools
 import inspect
 import os
 from pathlib import Path
-from typing import Any
-from typing import Literal, Callable
-from typing import Any, TypeVar, Callable
+from typing import Any, Callable
+from typing import Literal
 
 import openai
 from dotenv import load_dotenv
 
-from .argument_reconstruction_reconstructor import ArgumentReconstructionReconstructor
+from .argument_reconstructor import ArgumentReconstructor
 from .autoassert.runner_of_test import TestRunner
 from .event_analyzer_for_global_state import EventAnalyzer
 from .global_state_detector import find_global_vars, find_function_def
@@ -21,23 +20,26 @@ from .pickle_reconstructor import PickleReconstructor
 from .test_generator import TestGenerator
 
 
-def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
+def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
 
     def _explore(_func):
-        # if file is a test file, do nothing
-        # (needed to avoid explotest generated code running on itself)
-        if is_running_under_test():
-            return _func
 
-        # name of function under test
-        qualified_name = _func.__qualname__
-        file_path = Path(inspect.getsourcefile(_func))
         counter = 1
-        _func.__data__ = counter
+
+
 
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
         def wrapper(*args, **kwargs) -> Any:
+
+            # if file is a test file, do nothing
+            # (needed to avoid explotest generated code running on itself)
+            if is_running_under_test():
+                return _func
+
+            # name of function under test
+            qualified_name = _func.__qualname__
+            file_path = Path(inspect.getsourcefile(_func))
 
             # grab formal signature of func
             func_signature = inspect.signature(_func)
@@ -56,20 +58,23 @@ def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
             if not parsed_mode:
                 raise KeyError("Please enter a valid mode.")
 
-            if parsed_mode == Mode.TRACE:
-                # TODO: probably a way to either remove/integrate this
-                return _func(*args, **kwargs)
+            # if parsed_mode == Mode.TRACE:
+            #     # TODO: probably a way to either remove/integrate this
+            #     return _func(*args, **kwargs)
+            pickle_reconstructor = PickleReconstructor(file_path)
+            arr_reconstructor = ArgumentReconstructor(file_path, pickle_reconstructor)
 
-            tg = TestGenerator(qualified_name, file_path, parsed_mode)
+            match parsed_mode:
+                case Mode.PICKLE:
+                    reconstructor = pickle_reconstructor
+                case Mode.ARR:
+                    reconstructor = arr_reconstructor
+                case _:
+                    assert False
+
+            tg = TestGenerator(qualified_name, file_path, reconstructor)
 
             counter += 1
-            # func_source = inspect.getsource(_func)
-            # function_ast_node = None
-            # for node in ast.walk(ast.parse(func_source)):
-            #     if isinstance(node, ast.FunctionDef) and node.name == _func.__name__:
-            #         function_ast_node = node
-            #         break
-            #
 
             # finally, call and return the function-under-test
             load_dotenv()
@@ -91,11 +96,10 @@ def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
             eva.start_tracking()
             res: Any = _func(*args, **kwargs)
             llm_result = eva.end_tracking()
-            # print(f"LLM Result: {eva.end_tracking()}")
 
             mock_generator = (
-                ArgumentReconstructionReconstructor(file_path)
-                if parsed_mode == Mode.RECONSTRUCT
+                ArgumentReconstructor(file_path)
+                if parsed_mode == Mode.ARR
                 else PickleReconstructor(file_path)
             )
 
@@ -115,7 +119,6 @@ def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
                     bindings=bound_args.arguments,
                     definitions=generated_mocks + [mock_setup],
                 )
-                # generated_test.asserts = [ast.parse("return return_value")]
                 os.environ["RUNNING_GENERATED_TEST"] = "true"
                 tr = TestRunner(
                     generated_test,
@@ -126,7 +129,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a", "t"] = "p"):
                 er = tr.run_test()
                 print(er)
                 del os.environ["RUNNING_GENERATED_TEST"]
-                f.write(ast.unparse(generated_test.ast_node))
+                f.write(ast.unparse(generated_test.to_ast))
             return res
 
         return wrapper

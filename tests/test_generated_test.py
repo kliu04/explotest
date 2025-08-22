@@ -53,7 +53,7 @@ class TestGeneratedTest:
             "../test_data/test_generated_test_expected_test.py"
         ).read_text()
         compiled = parse(test_read)
-        assert unparse(compiled) == unparse(tut.ast_node)
+        assert unparse(compiled) == unparse(tut.to_ast)
 
 
 class TestActFunctionGeneration(TestGeneratedTest):

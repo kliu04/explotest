@@ -66,5 +66,3 @@ class TestFixtureGeneration:
 
         assert f'generate_{depend_abstract_factory_proxy_bean_singleton.parameter}' in args_as_string
         assert f'generate_{depend_kevin_liu.parameter}' in args_as_string
-
-    # def test_

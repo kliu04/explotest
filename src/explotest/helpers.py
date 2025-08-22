@@ -10,11 +10,11 @@ primitive_t = int | float | complex | str | bool | None
 
 
 class Mode(Enum):
-    """The mode that ExploTest runs in; one of pickling, [argument] reconstructing, or slicing."""
+    """The mode that ExploTest runs in; one of pickling, [argument] reconstructing, or tracing."""
 
     PICKLE = 1
     ARR = 2
-    TRACE = 3
+    # TRACE = 3
 
     @classmethod
     def from_string(cls, value: str):
@@ -24,10 +24,10 @@ class Mode(Enum):
             "p": cls.PICKLE,
             "arr": cls.ARR,
             "a": cls.ARR,
-            "trace": cls.TRACE,
-            "t": cls.TRACE,
+            # "trace": cls.TRACE,
+            # "t": cls.TRACE,
         }
-        return aliases.get(normalized)
+        return aliases[normalized]
 
 
 def is_lib_file(filepath: str) -> bool:

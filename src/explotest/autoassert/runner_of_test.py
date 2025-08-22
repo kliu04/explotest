@@ -3,10 +3,8 @@ from dataclasses import dataclass
 from tempfile import NamedTemporaryFile
 from typing import Any
 
-
-from pytest import ExitCode
-
 import pytest
+from pytest import ExitCode
 
 AUTOASSERT_RUNNING = "AUTOASSERT RUNNING"
 from explotest.autoassert.monitor_of_test import TestExecutionMonitor
@@ -34,7 +32,7 @@ class TestRunner:
         with NamedTemporaryFile(
             "w", dir=self.output_dir, prefix="test_", suffix=".py"
         ) as tf:
-            tf.write(ast.unparse(self.target_test.ast_node))
+            tf.write(ast.unparse(self.target_test.to_ast))
             tf.flush()
 
             tem1 = TestExecutionMonitor(

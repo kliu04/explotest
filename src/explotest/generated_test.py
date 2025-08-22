@@ -11,11 +11,11 @@ class GeneratedTest:
     imports: list[ast.Import | ast.ImportFrom]  # needed imports for the test file
     fixtures: list[PyTestFixture]  # argument generators
     act_phase: ast.Assign  # calling the function-under-test
-    asserts: list[ast.Assert]  # probably gonna be empty...
+    asserts: list[ast.Assert]
     definitions: list[ast.AST]  # for REPL
 
     @property
-    def ast_node(self) -> ast.Module:
+    def to_ast(self) -> ast.Module:
         """
         Returns the entire test as a module.
         """
@@ -48,7 +48,7 @@ class GeneratedTest:
 
         return ast.fix_missing_locations(
             generated_defn
-        )  # need to do ts to allow writing
+        ) 
 
     def decompose_steps(self) -> list[ast.Assign]:
         """
@@ -85,7 +85,6 @@ class GeneratedTest:
             raise ValueError(
                 "The assign value you passed into this test is not an ast.Call, meaning it does not invoke a function."
             )
-        assert isinstance(call, ast.Call)
         for arg in call.args:
             if isinstance(arg, ast.Name):
                 res.append(arg.id)
