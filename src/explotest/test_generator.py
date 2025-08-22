@@ -3,13 +3,8 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
 
-from .argument_reconstruction_reconstructor import (
-    ArgumentReconstructionReconstructor,
-)
 from .generated_test import GeneratedTest
-from .helpers import Mode
 from .helpers import sanitize_name
-from .pickle_reconstructor import PickleReconstructor
 from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 
@@ -19,22 +14,10 @@ class TestGenerator:
     file_path: Path
     reconstructor: Reconstructor
 
-    # TODO: refactor this to use dependency injection
-    def __init__(self, function_name: str, file_path: Path, mode: Mode):
+    def __init__(self, function_name: str, file_path: Path, reconstructor: Reconstructor):
         self.function_name = function_name
         self.file_path = file_path
-
-        match mode:
-            case Mode.ARR:
-                self.reconstructor = ArgumentReconstructionReconstructor(
-                    file_path, PickleReconstructor
-                )
-            case Mode.PICKLE:
-                self.reconstructor = PickleReconstructor(file_path)
-            # case Mode.SLICE:
-            #     self.reconstructor = SliceReconstructor(file_path)
-            case _:
-                raise Exception(f"Unknown Mode: {mode}")
+        self.reconstructor = reconstructor
 
     def _imports(
         self, filename: str, inject: list[ast.Import | ast.ImportFrom] | None = None
@@ -53,7 +36,7 @@ class TestGenerator:
             imports += [ast.Import(names=[alias(name=filename)])]
 
         return imports
-
+    
     @staticmethod
     def create_mocks(ptf_mapping: dict[str, PyTestFixture]) -> ast.FunctionDef:
         """
@@ -68,7 +51,7 @@ class TestGenerator:
                 ]
             ),
             body=(
-                [ast.Global(names=ptf_mapping.keys())]
+                [ast.Global(names=list(ptf_mapping.keys()))]
                 if len(ptf_mapping) > 0
                 else []
                 + [

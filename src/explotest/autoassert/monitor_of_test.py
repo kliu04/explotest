@@ -43,7 +43,7 @@ class TestExecutionMonitor:
             # breakpoint()
             print("Test function found!")
             self.retval_found = retval
-            return None
+        return None
 
     def end_tracking(self) -> Any:
         # free tracking

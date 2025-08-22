@@ -20,7 +20,6 @@ parser = ExplotestArgumentParser(
     epilog="For help, contact randy <at> randyzhu.com.",
 )
 
-ast.Call
 parser.add_argument("function_call", type=str)
 
 

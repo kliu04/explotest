@@ -6,14 +6,14 @@ import pandas as pd
 import pytest
 from pytest import fixture
 
-from src.explotest.argument_reconstruction_reconstructor import (
-    ArgumentReconstructionReconstructor,
+from src.explotest.argument_reconstructor import (
+    ArgumentReconstructor,
 )
 
 
 @fixture
 def setup(tmp_path):
-    arr = ArgumentReconstructionReconstructor(tmp_path)
+    arr = ArgumentReconstructor(tmp_path)
     d = tmp_path / "pickled"
     d.mkdir()
     yield arr
@@ -152,7 +152,7 @@ def test_reconstruct_list(setup):
     assert re.search(pattern, ast.unparse(asts[0].body[0]))
 
 
-is_reconstructible = ArgumentReconstructionReconstructor.is_reconstructible
+is_reconstructible = ArgumentReconstructor.is_reconstructible
 
 
 class TestObjectDetection:

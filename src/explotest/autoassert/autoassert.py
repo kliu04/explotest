@@ -9,8 +9,8 @@ from typing import Any
 
 import dill
 
-from explotest.argument_reconstruction_reconstructor import (
-    ArgumentReconstructionReconstructor,
+from explotest.argument_reconstructor import (
+    ArgumentReconstructor,
 )
 from explotest.autoassert.runner_of_test import ExecutionResult
 from explotest.pytest_fixture import PyTestFixture
@@ -36,7 +36,7 @@ def determine_assertion(er: ExecutionResult) -> AssertionToGenerate:
     """ """
 
     if er.result_from_run_one == er.result_from_run_two:
-        if ArgumentReconstructionReconstructor.is_reconstructible(
+        if ArgumentReconstructor.is_reconstructible(
             er.result_from_run_one
         ):
             return AssertionToGenerate.TOTAL_EQUALITY_ARR
@@ -141,3 +141,5 @@ def generate_assertion(
             return AssertionResult([], [])  # todo: implement
         case AssertionToGenerate.TOTAL_EQUALITY_ARR:
             return AssertionResult([], [])
+        case _:
+            assert False

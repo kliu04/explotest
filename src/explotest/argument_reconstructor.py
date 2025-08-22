@@ -1,7 +1,7 @@
 import ast
 import inspect
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 from .helpers import is_primitive, is_collection, random_id
@@ -10,14 +10,16 @@ from .reconstructor import Reconstructor
 
 
 @dataclass
-class ArgumentReconstructionReconstructor(Reconstructor):
+class ArgumentReconstructor(Reconstructor):
+
+    seen: list[str] = field(default_factory=list)
 
     def _ast(self, parameter, argument):
         # corresponds to: setattr(x, attribute_name, generate_attribute_value)
         # or falls back to pickling
         if is_primitive(argument):
             return Reconstructor._reconstruct_primitive(parameter, argument)
-        elif ArgumentReconstructionReconstructor.is_reconstructible(argument):
+        elif ArgumentReconstructor.is_reconstructible(argument):
             return self._reconstruct_object_instance(parameter, argument)
         else:
             backup = self.backup_reconstructor(self.file_path)
@@ -68,7 +70,6 @@ class ArgumentReconstructionReconstructor(Reconstructor):
         if is_bad(obj):
             return False
 
-        # TODO: refactor this shit to BFS
         visited: list[Any] = []
 
         q: deque[Any] = deque()
@@ -173,6 +174,7 @@ class ArgumentReconstructionReconstructor(Reconstructor):
 
         attributes = inspect.getmembers(obj, predicate=lambda x: not callable(x))
         attributes = list(filter(lambda x: x[0] not in builtins, attributes))
+        print(list(map(type, attributes)))
         ptf_body: list[ast.AST] = []
         deps: list[PyTestFixture] = []
 

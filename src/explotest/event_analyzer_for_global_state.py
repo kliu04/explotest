@@ -127,3 +127,4 @@ class EventAnalyzer:
                 llm_analysis.filter_mocks()
             )  # return the first instance of the call, we don't care about the rest.
         # just try to recon that
+        return None
