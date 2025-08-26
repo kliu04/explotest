@@ -174,8 +174,13 @@ class ArgumentReconstructor(Reconstructor):
 
         attributes = inspect.getmembers(obj, predicate=lambda x: not callable(x))
         attributes = list(filter(lambda x: x[0] not in builtins, attributes))
-        print(list(map(type, attributes)))
+        # filter out properties
+        # type(obj) is the class obj is defined from
+        # x[0] is the name of the variable
+        attributes = list(filter(lambda x : not isinstance(getattr(type(obj), x[0], None), property), attributes))
+        
         ptf_body: list[ast.AST] = []
+        print(attributes)
         deps: list[PyTestFixture] = []
 
         # create an instance without calling __init__

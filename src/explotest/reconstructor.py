@@ -17,7 +17,7 @@ class Reconstructor(abc.ABC):
     backup_reconstructor: type[Self] | None = None
 
     def asts(self, bindings: Dict[str, Any]) -> list[PyTestFixture]:
-        """:returns a list of PyTestFixture, which represents each parameter : argument pair"""
+        """:return: a list of PyTestFixture, which represents each parameter : argument pair"""
 
         fixtures = {}
         for parameter, argument in bindings.items():
