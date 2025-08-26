@@ -1,4 +1,4 @@
-from sys import monitoring as sm
+from sys import monitoring
 from types import CodeType
 from typing import Any
 
@@ -23,14 +23,14 @@ class TestExecutionMonitor:
         print(
             f"==test monitor== starting with fut: {self.function_under_test_name}, fut_path: {self.function_under_test_path}"
         )
-        if sm.get_events(self.TOOL_ID):
+        if monitoring.get_events(self.TOOL_ID):
             raise RuntimeError("The test execution monitor is already running!")
-        sm.use_tool_id(self.TOOL_ID, self.TOOL_NAME)
+        monitoring.use_tool_id(self.TOOL_ID, self.TOOL_NAME)
         assert (
-            sm.register_callback(self.TOOL_ID, sm.events.PY_RETURN, self.monitor)
+            monitoring.register_callback(self.TOOL_ID, monitoring.events.PY_RETURN, self.monitor)
             is None
         )
-        sm.set_events(self.TOOL_ID, sm.events.PY_RETURN)
+        monitoring.set_events(self.TOOL_ID, monitoring.events.PY_RETURN)
 
     # noinspection PyUnusedLocal
     def monitor(self, code: CodeType, instruction_offset: int, retval: object) -> None:
@@ -47,7 +47,7 @@ class TestExecutionMonitor:
 
     def end_tracking(self) -> Any:
         # free tracking
-        sm.set_events(self.TOOL_ID, 0)
-        sm.register_callback(self.TOOL_ID, sm.events.PY_RETURN, None)
-        sm.free_tool_id(self.TOOL_ID)
-        return self.retval_found
+        monitoring.set_events(self.TOOL_ID, 0)
+        monitoring.register_callback(self.TOOL_ID, monitoring.events.PY_RETURN, None)
+        monitoring.free_tool_id(self.TOOL_ID)
+        return getattr(self, "retval_found", None)

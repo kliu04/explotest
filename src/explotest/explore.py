@@ -21,13 +21,9 @@ from .test_generator import TestGenerator
 
 
 def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
-
     def _explore(_func):
-
-        counter = 1
-
-
-
+        counter = 0
+        
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
         def wrapper(*args, **kwargs) -> Any:
@@ -36,6 +32,9 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             # (needed to avoid explotest generated code running on itself)
             if is_running_under_test():
                 return _func
+            
+            nonlocal counter
+            counter += 1
 
             # name of function under test
             qualified_name = _func.__qualname__
@@ -48,8 +47,6 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             # fill in default arguments, if needed
             bound_args.apply_defaults()
 
-            nonlocal counter
-
             parsed_mode: Mode = Mode.from_string(mode)
 
             # make pickled directory
@@ -58,9 +55,6 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             if not parsed_mode:
                 raise KeyError("Please enter a valid mode.")
 
-            # if parsed_mode == Mode.TRACE:
-            #     # TODO: probably a way to either remove/integrate this
-            #     return _func(*args, **kwargs)
             pickle_reconstructor = PickleReconstructor(file_path)
             arr_reconstructor = ArgumentReconstructor(file_path, pickle_reconstructor)
 
@@ -73,8 +67,6 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                     assert False
 
             tg = TestGenerator(qualified_name, file_path, reconstructor)
-
-            counter += 1
 
             # finally, call and return the function-under-test
             load_dotenv()
