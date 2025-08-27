@@ -9,11 +9,11 @@ from typing import Any
 
 import dill
 
+from explotest.abstract_fixture import AbstractFixture
 from explotest.argument_reconstructor import (
     ArgumentReconstructor,
 )
 from explotest.autoassert.runner_of_test import ExecutionResult
-from explotest.pytest_fixture import PyTestFixture
 
 
 class AssertionToGenerate(Enum):
@@ -28,7 +28,7 @@ class AssertionToGenerate(Enum):
 
 @dataclass
 class AssertionResult:
-    fixtures: list[PyTestFixture]
+    fixtures: list[AbstractFixture]
     assertions: list[ast.Assert]
 
 

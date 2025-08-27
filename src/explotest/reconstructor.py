@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast, Dict, Any, Self
 
-from .pytest_fixture import PyTestFixture
+from .abstract_fixture import AbstractFixture
 
 
 @dataclass
@@ -16,7 +16,7 @@ class Reconstructor(abc.ABC):
     file_path: Path
     backup_reconstructor: type[Self] | None = None
 
-    def asts(self, bindings: Dict[str, Any]) -> list[PyTestFixture]:
+    def asts(self, bindings: Dict[str, Any]) -> list[AbstractFixture]:
         """:return: a list of PyTestFixture, which represents each parameter : argument pair"""
 
         fixtures = {}
@@ -28,10 +28,10 @@ class Reconstructor(abc.ABC):
         return list(fixtures)
 
     @staticmethod
-    def fixture_bfs(ptf: PyTestFixture) -> dict[PyTestFixture, None]:
+    def fixture_bfs(ptf: AbstractFixture) -> dict[AbstractFixture, None]:
         # bfs on ptf and return all explored edges including itself.
-        explored: dict[PyTestFixture, None] = {}
-        q: deque[PyTestFixture] = deque()
+        explored: dict[AbstractFixture, None] = {}
+        q: deque[AbstractFixture] = deque()
         q.append(ptf)
         while len(q) != 0:
             current_vertex = q.popleft()
@@ -43,10 +43,10 @@ class Reconstructor(abc.ABC):
         return explored
 
     @abstractmethod
-    def _ast(self, parameter: str, argument: Any) -> PyTestFixture: ...
+    def _ast(self, parameter: str, argument: Any) -> AbstractFixture: ...
 
     @staticmethod
-    def _reconstruct_primitive(parameter: str, argument: Any) -> PyTestFixture:
+    def _reconstruct_primitive(parameter: str, argument: Any) -> AbstractFixture:
         """Helper to reconstruct primitives, since behaviour should be the same across all reconstruction modes."""
         # need to cast here to not confuse mypy
         generated_ast = cast(
@@ -65,4 +65,4 @@ class Reconstructor(abc.ABC):
             ast.Return(value=ast.Name(id=parameter, ctx=ast.Load()))
         )
 
-        return PyTestFixture([], parameter, [generated_ast], ret)
+        return AbstractFixture([], parameter, [generated_ast], ret)

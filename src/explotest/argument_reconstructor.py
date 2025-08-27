@@ -4,8 +4,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, cast
 
+from .abstract_fixture import AbstractFixture
 from .helpers import is_primitive, is_collection, random_id
-from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 
 
@@ -93,7 +93,7 @@ class ArgumentReconstructor(Reconstructor):
                     q.append(next_attr)
         return True
 
-    def _reconstruct_collection(self, parameter, collection) -> PyTestFixture:
+    def _reconstruct_collection(self, parameter, collection) -> AbstractFixture:
         # primitive values in collections will remain as is
         # E.g., [1, 2, <Object1>, <Object2>] -> [1, 2, generate_object1_type_id, generate_object2_type_id]
         # where id is an 8 digit random hex code
@@ -157,9 +157,9 @@ class ArgumentReconstructor(Reconstructor):
         ret = ast.fix_missing_locations(
             ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
         )
-        return PyTestFixture(deps, parameter, ptf_body, ret)
+        return AbstractFixture(deps, parameter, ptf_body, ret)
 
-    def _reconstruct_object_instance(self, parameter: str, obj: Any) -> PyTestFixture:
+    def _reconstruct_object_instance(self, parameter: str, obj: Any) -> AbstractFixture:
         """Return an PTF representation of a clone of obj by setting attributes equal to obj."""
 
         # taken from inspect.getmembers(Foo()) on empty class Foo
@@ -181,7 +181,7 @@ class ArgumentReconstructor(Reconstructor):
         
         ptf_body: list[ast.AST] = []
         print(attributes)
-        deps: list[PyTestFixture] = []
+        deps: list[AbstractFixture] = []
 
         # create an instance without calling __init__
         # E.g., clone = foo.Foo.__new__(foo.Foo) (for file foo.py that defines a class Foo)
@@ -212,6 +212,7 @@ class ArgumentReconstructor(Reconstructor):
             ),
         )
         _clone = ast.fix_missing_locations(_clone)
+
         ptf_body.append(_clone)
         for attribute_name, attribute_value in attributes:
             if is_primitive(attribute_value):
@@ -246,4 +247,4 @@ class ArgumentReconstructor(Reconstructor):
         ret = ast.fix_missing_locations(
             ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
         )
-        return PyTestFixture(deps, parameter, ptf_body, ret)
+        return AbstractFixture(deps, parameter, ptf_body, ret)

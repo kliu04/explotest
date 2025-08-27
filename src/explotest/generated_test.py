@@ -2,14 +2,14 @@ import ast
 from _ast import FunctionDef
 from dataclasses import dataclass
 
-from .pytest_fixture import PyTestFixture
+from .abstract_fixture import AbstractFixture
 
 
 @dataclass
 class GeneratedTest:
     function_name: str
     imports: list[ast.Import | ast.ImportFrom]  # needed imports for the test file
-    fixtures: list[PyTestFixture]  # argument generators
+    fixtures: list[AbstractFixture]  # argument generators
     act_phase: ast.Assign  # calling the function-under-test
     asserts: list[ast.Assert]
     definitions: list[ast.AST]  # for REPL
@@ -95,4 +95,4 @@ class GeneratedTest:
         """
         Returns all the fixtures as a list of FunctionDef nodes.
         """
-        return [fixture.ast_node for fixture in self.fixtures]
+        return [fixture.build_fixture for fixture in self.fixtures]

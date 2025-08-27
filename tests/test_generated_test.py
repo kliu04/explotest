@@ -2,22 +2,22 @@ from ast import *
 
 import pytest
 
+from src.explotest.abstract_fixture import AbstractFixture
 from src.explotest.generated_test import GeneratedTest
-from src.explotest.pytest_fixture import PyTestFixture
 from .test_fixture_generation import sample_arg_reconstruct_body
 
 
 class TestGeneratedTest:
-    fixture_afpbs = PyTestFixture(
+    fixture_afpbs = AbstractFixture(
         [],
         "abstract_factory_proxy_bean_singleton",
         [Pass()],
         Return(value=Constant(value=None)),
     )
-    fixture_kevin_liu = PyTestFixture(
+    fixture_kevin_liu = AbstractFixture(
         [], "kevin_liu", [Pass()], Return(value=Constant(value=None))
     )
-    fixture_x = PyTestFixture(
+    fixture_x = AbstractFixture(
         [fixture_afpbs, fixture_kevin_liu],
         "x",
         sample_arg_reconstruct_body(),

@@ -96,7 +96,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             )
 
             ptfs = mock_generator.asts(llm_result)
-            generated_mocks = [p.ast_node for p in ptfs]
+            generated_mocks = [p.build_fixture for p in ptfs]
 
             mock_setup = TestGenerator.create_mocks(
                 {fixture.parameter: fixture for fixture in ptfs}
