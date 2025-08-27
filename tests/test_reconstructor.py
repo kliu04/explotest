@@ -1,12 +1,12 @@
 from ast import *
 from typing import Any
 
-from src.explotest.pytest_fixture import PyTestFixture
+from src.explotest.abstract_fixture import AbstractFixture
 from src.explotest.reconstructor import Reconstructor
 
 
-def _make_ptf_empty(deps: list[PyTestFixture], param: str):
-    ptf = PyTestFixture(deps, param, [Pass()], Return(value=Constant(value=None)))
+def _make_ptf_empty(deps: list[AbstractFixture], param: str):
+    ptf = AbstractFixture(deps, param, [Pass()], Return(value=Constant(value=None)))
     return ptf
 
 def test_reconstructor_fixture_bfs():
@@ -25,7 +25,7 @@ def test_reconstructor_fixture_bfs():
 
 class ReconstructorInheritor(Reconstructor):
 
-    def _ast(self, parameter: str, argument: Any) -> PyTestFixture:
+    def _ast(self, parameter: str, argument: Any) -> AbstractFixture:
         return _make_ptf_empty(argument, parameter)
 
 

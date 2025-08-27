@@ -3,9 +3,9 @@ from _ast import alias
 from pathlib import Path
 from typing import Dict, Any
 
+from .abstract_fixture import AbstractFixture
 from .generated_test import GeneratedTest
 from .helpers import sanitize_name
-from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 
 
@@ -38,7 +38,7 @@ class TestGenerator:
         return imports
     
     @staticmethod
-    def create_mocks(ptf_mapping: dict[str, PyTestFixture]) -> ast.FunctionDef:
+    def create_mocks(ptf_mapping: dict[str, AbstractFixture]) -> ast.FunctionDef:
         """
         Creates a function that uses the mock_ptf_names
         """

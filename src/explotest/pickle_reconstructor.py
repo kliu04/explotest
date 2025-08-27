@@ -5,15 +5,15 @@ from typing import cast
 
 import dill
 
+from .abstract_fixture import AbstractFixture
 from .helpers import is_primitive, random_id
-from .pytest_fixture import PyTestFixture
 from .reconstructor import Reconstructor
 
 
 @dataclass
 class PickleReconstructor(Reconstructor):
 
-    def _ast(self, parameter, argument) -> PyTestFixture:
+    def _ast(self, parameter, argument) -> AbstractFixture:
         if is_primitive(argument):
             return Reconstructor._reconstruct_primitive(parameter, argument)
 
@@ -76,4 +76,4 @@ class PickleReconstructor(Reconstructor):
             ast.Return(value=ast.Name(id=parameter, ctx=ast.Load()))
         )
 
-        return PyTestFixture([], parameter, [generated_ast], ret)
+        return AbstractFixture([], parameter, [generated_ast], ret)
