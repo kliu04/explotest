@@ -55,7 +55,7 @@ def is_primitive(x: Any) -> bool:
     def is_collection_of_primitive(cox: collection_t) -> bool:
         if isinstance(cox, dict):
             # need both keys and values to be primitives
-            return is_primitive(cox.keys()) and is_primitive(cox.values())
+            return all(is_primitive(k) and is_primitive(v) for k, v in cox.items())
         return all(is_primitive(item) for item in cox)
 
     if isinstance(x, collection_t):
