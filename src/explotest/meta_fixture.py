@@ -22,7 +22,7 @@ class MetaFixture:
         :return: This MetaFixture as an AST and its dependencies.
         """
 
-        # adds the @property annotation
+        # adds the @pytest.fixture decorator
         pytest_deco = ast.Attribute(
             value=ast.Name(id="pytest", ctx=ast.Load()), attr="fixture", ctx=ast.Load()
         )
