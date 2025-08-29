@@ -13,7 +13,7 @@ class ArgumentReconstructor(AbstractReconstructor):
     @override
     def make_fixture(self, parameter, argument):
         return self._make_fixture(parameter, argument, dict())
-        
+
     def _make_fixture(self, parameter, argument, seen_args: dict[Any, MetaFixture]):
         """
         :param parameter: The parameter (as a string) to create the MetaFixture for
@@ -22,31 +22,31 @@ class ArgumentReconstructor(AbstractReconstructor):
         :return: The MetaFixture needed to recreate the argument, or None if ExploTest fails.
         """
         # seen_args has to be a list because some objects don't define __hash__
-        
+
         if is_primitive(argument):
             return super()._make_primitive_fixture(parameter, argument)
-        
+
         if argument in seen_args:
             return seen_args[argument]
-        
+
         if self.is_reconstructible(argument):
             reconstructed = self._reconstruct_object_instance(parameter, argument, seen_args)
             seen_args[argument] = reconstructed
             return reconstructed
-        
+
         if self.backup_reconstructor:
             reconstructed = self.backup_reconstructor.make_fixture(parameter, argument)
             seen_args[argument] = reconstructed
             return reconstructed
-        
-        return None  
+
+        return None
 
     def _reconstruct_collection(self, parameter: str, collection: collection_t, seen_args) -> Optional[MetaFixture]:
         """
         Given a parameter and a collection, attempt to recreate the collection.
-        :param parameter: 
-        :param collection: 
-        :return: 
+        :param parameter:
+        :param collection:
+        :return:
         """
         # primitive values in collections will remain as is
         # E.g., [1, 2, <Object1>, <Object2>] -> [1, 2, generate_object1_type_id, generate_object2_type_id]
@@ -58,12 +58,15 @@ class ArgumentReconstructor(AbstractReconstructor):
         def generate_elt_name(t: str) -> str:
             return f"{t}_{random_id()}"
 
-        def elt_to_ast(obj):
+        def elt_to_ast(obj) -> Optional[ast.AST]:
             if is_primitive(obj):
                 return ast.Constant(value=obj)
             else:
                 rename = generate_elt_name(obj.__class__.__name__)
-                deps.append(self._make_fixture(rename, obj, seen_args))
+                new_fixture = self._make_fixture(rename, obj, seen_args)
+                if new_fixture is None:
+                    return None
+                deps.append(new_fixture)
                 return ast.Name(id=f"generate_{rename}", ctx=ast.Load())
 
         if isinstance(collection, dict):
@@ -71,13 +74,18 @@ class ArgumentReconstructor(AbstractReconstructor):
                 elt_to_ast(key): elt_to_ast(value) for key, value in collection.items()
             }
 
+            if any(v is None for v in d.values()):
+                return None
+            
+            assert all(v is not None for v in d.values())
+
             _clone = cast(
                 ast.AST,
                 ast.Assign(
                     targets=[ast.Name(id=f"clone_{parameter}", ctx=ast.Store())],
                     value=ast.Dict(
                         keys=list(d.keys()),
-                        values=list(d.values()),
+                        values=list(d.values()), # type: ignore
                     ),
                 ),
             )
@@ -93,12 +101,16 @@ class ArgumentReconstructor(AbstractReconstructor):
                 assert False  # unreachable
 
             collection_asts = list(map(elt_to_ast, collection))
+            if any(v is None for v in collection_asts):
+                return None
+            
+            assert all(v is not None for v in collection_asts)
 
             _clone = cast(
                 ast.AST,
                 ast.Assign(
                     targets=[ast.Name(id=f"clone_{parameter}", ctx=ast.Store())],
-                    value=collection_ast_type(
+                    value=collection_ast_type( # type: ignore
                         elts=collection_asts,
                         ctx=ast.Load(),
                     ),
@@ -112,7 +124,7 @@ class ArgumentReconstructor(AbstractReconstructor):
             ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
         )
         return MetaFixture(deps, parameter, meta_fixture_body, ret)
-            
+
     def _reconstruct_object_instance(self, parameter: str, obj: Any, seen_args) -> Optional[MetaFixture]:
         """Return an MetaFixture representation of a clone of obj by setting attributes equal to obj."""
 
@@ -183,7 +195,10 @@ class ArgumentReconstructor(AbstractReconstructor):
                 uniquified_name = (
                     f"{parameter}_{attribute_name}"  # needed to avoid name collisions
                 )
-                deps.append(self._make_fixture(uniquified_name, attribute_value, seen_args))
+                new_fixture = self._make_fixture(uniquified_name, attribute_value, seen_args)
+                if new_fixture is None:
+                    return None
+                deps.append(new_fixture)
                 _setattr = ast.Expr(
                     value=ast.Call(
                         func=ast.Name(id="setattr", ctx=ast.Load()),
@@ -201,7 +216,7 @@ class ArgumentReconstructor(AbstractReconstructor):
             ast.Return(value=ast.Name(id=f"clone_{parameter}", ctx=ast.Load()))
         )
         return MetaFixture(deps, parameter, cast(list[ast.stmt], ptf_body), ret)
-    
+
     @staticmethod
     def is_reconstructible(obj: Any) -> bool:
         """True iff object is an instance of a user-defined class."""
