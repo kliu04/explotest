@@ -59,10 +59,10 @@ class TestBuilder:
         return MetaTest(self.fut_name, parameters, imports, fixtures, return_ast, [])
 
     def create_mocks(self):
-        return NotImplementedError("Oop")
+        raise NotImplementedError("Oop")
     
     def create_asserts(self):
-        return NotImplementedError("Oop")    
+        raise NotImplementedError("Oop")    
     
     # TODO: handle imports
     
