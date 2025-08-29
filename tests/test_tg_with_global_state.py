@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 from explotest.event_analyzer_for_global_state import EventAnalyzer
 from explotest.global_state_detector import find_global_vars, find_function_def
-from explotest.test_generator import TestGenerator
+from explotest.test_builder import AbstractTestBuilder
 
 load_dotenv()
 
@@ -82,5 +82,5 @@ def analysis_result(analyzer: EventAnalyzer) -> dict[str, object]:
 
 
 def test_create_test_and_mock_setup_for_get_weather_data(analysis_result):
-    mocks = TestGenerator.create_mocks(list(analysis_result.keys()))
+    mocks = AbstractTestBuilder.create_mocks(list(analysis_result.keys()))
     assert len(mocks) == 1

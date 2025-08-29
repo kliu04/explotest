@@ -2,7 +2,6 @@ import pytest
 from IPython.core import magic_arguments
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 
-from src.explotest.generated_test import GeneratedTest
 
 # from src.explotest.ipy.extension import generate_tests_wrapper
 

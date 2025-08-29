@@ -1,24 +1,25 @@
 import ast
 from dataclasses import dataclass
-from typing import Self, cast
+from typing import Self
 
-from typing_extensions import override
+from explotest import helpers
 
 
 @dataclass(frozen=True)
-class AbstractFixture:
+class MetaFixture:
     """
     Abstract representation of a PyTest Fixture that generates a single variable.
     """
-    depends: list[Self]  # fixture dependencies
+    depends: list[Self]  # fixture dependencies (direct only)
     parameter: str  # parameter that this fixture generates
-    body: list[ast.AST]  # body of the fixture
+    body: list[ast.stmt]  # body of the fixture
     ret: ast.Return | ast.Yield  # return value of the fixture
 
-    @property
-    def build_fixture(self) -> ast.FunctionDef:
+    def make_fixture(self) -> list[ast.FunctionDef]:
         """
         Concretize this abstract fixture into a PyTest Fixture.
+
+        :return: This MetaFixture as an AST and its dependencies.
         """
 
         # adds the @property annotation
@@ -26,8 +27,12 @@ class AbstractFixture:
             value=ast.Name(id="pytest", ctx=ast.Load()), attr="fixture", ctx=ast.Load()
         )
 
-        # creates a new function definition with name generate_{parameter} and requests the dependent fixtures.
-        return ast.fix_missing_locations(
+        # fixtures for all dependencies of this fixture
+        # TODO: see if infinite recursion is possible here
+        dependency_fixtures = [dep.make_fixture() for dep in self.depends]
+
+        # creates a new function definition with name generate_{parameter}
+        return [ast.fix_missing_locations(
             ast.FunctionDef(
                 name=f"generate_{self.parameter}",
                 args=ast.arguments(
@@ -36,11 +41,7 @@ class AbstractFixture:
                         for dependency in self.depends
                     ]
                 ),
-                body=cast(ast.stmt, self.body) + [self.ret],
+                body= self.body + [self.ret],
                 decorator_list=[pytest_deco],
             )
-        )
-
-    @override
-    def __hash__(self) -> int:  # make the object usable as a dict key / set element
-        return hash(ast.unparse(self.build_fixture))
+        )] + helpers.flatten(dependency_fixtures)

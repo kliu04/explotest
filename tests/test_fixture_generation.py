@@ -3,7 +3,7 @@ from ast import *
 
 import pytest
 
-from src.explotest.abstract_fixture import AbstractFixture
+from src.explotest.meta_fixture import MetaFixture
 
 
 def pickle_mode_body() -> list[AST]:
@@ -39,12 +39,12 @@ class TestFixtureGeneration:
         """
         This test tests that the body supplied is correctly injected into the new fixture.
         """
-        result = AbstractFixture([], var_name, body, ret)
+        result = MetaFixture([], var_name, body, ret)
         expected = FunctionDef(name=f'generate_{var_name}', args=arguments(), body=body + [ret], decorator_list=[
             Attribute(value=Name(id='pytest', ctx=Load()), attr='fixture', ctx=Load())])
 
 
-        assert ast.unparse(ast.fix_missing_locations(expected)) == ast.unparse(result.build_fixture)
+        assert ast.unparse(ast.fix_missing_locations(expected)) == ast.unparse(result.make_fixture)
 
     def test_fixture_resolves_dependencies(self, var_name, body, ret):
         """
@@ -55,14 +55,14 @@ class TestFixtureGeneration:
         ->: depends on
         Case: x -> abstract_factory_proxy_bean_singleton, kevin_liu
         """
-        depend_abstract_factory_proxy_bean_singleton = AbstractFixture([], 'abstract_factory_proxy_bean_singleton',
-                                                                       [Pass()], Return(value=Constant(value=None)))
-        depend_kevin_liu = AbstractFixture([], 'kevin_liu', [Pass()], Return(value=Constant(value=None)))
+        depend_abstract_factory_proxy_bean_singleton = MetaFixture([], 'abstract_factory_proxy_bean_singleton',
+                                                                   [Pass()], Return(value=Constant(value=None)))
+        depend_kevin_liu = MetaFixture([], 'kevin_liu', [Pass()], Return(value=Constant(value=None)))
 
-        result_with_depends = AbstractFixture([depend_abstract_factory_proxy_bean_singleton, depend_kevin_liu], var_name,
-                                              body, Return(value=Constant(value=None)))
+        result_with_depends = MetaFixture([depend_abstract_factory_proxy_bean_singleton, depend_kevin_liu], var_name,
+                                          body, Return(value=Constant(value=None)))
 
-        args_as_string = [arg.arg for arg in result_with_depends.build_fixture.args.args]
+        args_as_string = [arg.arg for arg in result_with_depends.make_fixture.args.args]
 
         assert f'generate_{depend_abstract_factory_proxy_bean_singleton.parameter}' in args_as_string
         assert f'generate_{depend_kevin_liu.parameter}' in args_as_string

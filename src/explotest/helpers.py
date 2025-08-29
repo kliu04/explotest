@@ -1,12 +1,10 @@
 import os
 import uuid
+from collections.abc import Iterable
 from enum import Enum
 
 # from autoassert import runner_of_test
-from typing import Any
-
-collection_t = list | set | dict | tuple
-primitive_t = int | float | complex | str | bool | None
+from typing import Any, Optional, Self
 
 
 class Mode(Enum):
@@ -14,10 +12,9 @@ class Mode(Enum):
 
     PICKLE = 1
     ARR = 2
-    # TRACE = 3
 
     @classmethod
-    def from_string(cls, value: str):
+    def from_string(cls, value: str) -> Optional[Self]:
         normalized = value.strip().lower()
         aliases = {
             "pickle": cls.PICKLE,
@@ -27,7 +24,11 @@ class Mode(Enum):
             # "trace": cls.TRACE,
             # "t": cls.TRACE,
         }
-        return aliases[normalized]
+        return aliases.get(normalized, None)
+
+
+collection_t = list | set | dict | tuple
+primitive_t = int | float | complex | str | bool | None
 
 
 def is_lib_file(filepath: str) -> bool:
@@ -44,6 +45,12 @@ def uniquify(name: str) -> str:
 
 def sanitize_name(name: str) -> str:
     return name.replace(".", "_")
+
+def flatten(x):
+    if isinstance(x, Iterable):
+        return [a for i in x for a in flatten(i)]
+    else:
+        return [x]
 
 
 def is_primitive(x: Any) -> bool:
@@ -69,5 +76,5 @@ def is_collection(x: Any) -> bool:
 
 
 def is_running_under_test():
-    """Returns True iff the program-under-test is a test file. (Currently only supports pytest)"""
+    """Returns True iff the program-under-test is a test program."""
     return os.getenv("RUNNING_GENERATED_TEST") == "true"

@@ -1,9 +1,8 @@
 import ast
 import re
 
+from explotest.pickle_reconstructor import PickleReconstructor
 from pytest import fixture
-
-from src.explotest.pickle_reconstructor import PickleReconstructor
 
 
 @fixture
