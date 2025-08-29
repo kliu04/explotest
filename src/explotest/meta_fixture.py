@@ -28,7 +28,6 @@ class MetaFixture:
         )
 
         # fixtures for all dependencies of this fixture
-        # TODO: see if infinite recursion is possible here
         dependency_fixtures = [dep.make_fixture() for dep in self.depends]
 
         # creates a new function definition with name generate_{parameter}
