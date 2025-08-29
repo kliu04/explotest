@@ -22,6 +22,7 @@ class PickleReconstructor(AbstractReconstructor):
         try:
             with open(pickled_path, "wb") as f:
                 f.write(dill.dumps(argument))
+        except TypeError:
             print(f"[ERROR]: Cannot pickle argument '{parameter}' of type {type(argument).__name__}")
             return None
         

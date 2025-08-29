@@ -3,7 +3,6 @@ import inspect
 from pathlib import Path
 from typing import Optional
 
-from explotest.helpers import flatten
 from explotest.meta_test import MetaTest
 from explotest.reconstructors.abstract_reconstructor import AbstractReconstructor
 
@@ -39,7 +38,7 @@ class TestBuilder:
             new_fixtures = self.reconstructor.make_fixture(parameter, argument)
             if new_fixtures is None:
                 return None
-            fixtures.extend(flatten(new_fixtures))
+            fixtures.append(new_fixtures)
                 
         filename = self.fut_path.stem
         return_ast = ast.Assign(
