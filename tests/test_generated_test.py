@@ -2,22 +2,22 @@ from ast import *
 
 import pytest
 
-from src.explotest.abstract_fixture import AbstractFixture
-from src.explotest.generated_test import GeneratedTest
+from src.explotest.meta_fixture import MetaFixture
+from src.explotest.meta_test import MetaTest
 from .test_fixture_generation import sample_arg_reconstruct_body
 
 
 class TestGeneratedTest:
-    fixture_afpbs = AbstractFixture(
+    fixture_afpbs = MetaFixture(
         [],
         "abstract_factory_proxy_bean_singleton",
         [Pass()],
         Return(value=Constant(value=None)),
     )
-    fixture_kevin_liu = AbstractFixture(
+    fixture_kevin_liu = MetaFixture(
         [], "kevin_liu", [Pass()], Return(value=Constant(value=None))
     )
-    fixture_x = AbstractFixture(
+    fixture_x = MetaFixture(
         [fixture_afpbs, fixture_kevin_liu],
         "x",
         sample_arg_reconstruct_body(),
@@ -40,7 +40,7 @@ class TestGeneratedTest:
 
     @pytest.fixture
     def tut(self):
-        tut = GeneratedTest(
+        tut = MetaTest(
             "call", self.imports, self.all_imports, self.assignment, [], []
         )
         return tut
@@ -53,7 +53,7 @@ class TestGeneratedTest:
             "../test_data/test_generated_test_expected_test.py"
         ).read_text()
         compiled = parse(test_read)
-        assert unparse(compiled) == unparse(tut.to_ast)
+        assert unparse(compiled) == unparse(tut.make_test)
 
 
 class TestActFunctionGeneration(TestGeneratedTest):

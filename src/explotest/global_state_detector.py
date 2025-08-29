@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, override, Literal
 
-from .reconstructor import Reconstructor
+from explotest.reconstructor import Reconstructor
 
 
 @dataclass

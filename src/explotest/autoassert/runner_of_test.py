@@ -8,7 +8,7 @@ from pytest import ExitCode
 
 AUTOASSERT_RUNNING = "AUTOASSERT RUNNING"
 from explotest.autoassert.monitor_of_test import TestExecutionMonitor
-from explotest.generated_test import GeneratedTest
+from explotest.meta_test import MetaTest
 
 
 @dataclass(frozen=True)
@@ -19,7 +19,7 @@ class ExecutionResult:
 
 @dataclass
 class TestRunner:
-    target_test: GeneratedTest
+    target_test: MetaTest
     function_under_test_name: str
     function_under_test_path: str
     output_dir: str
@@ -32,7 +32,7 @@ class TestRunner:
         with NamedTemporaryFile(
             "w", dir=self.output_dir, prefix="test_", suffix=".py"
         ) as tf:
-            tf.write(ast.unparse(self.target_test.to_ast))
+            tf.write(ast.unparse(self.target_test.make_test))
             tf.flush()
 
             tem1 = TestExecutionMonitor(

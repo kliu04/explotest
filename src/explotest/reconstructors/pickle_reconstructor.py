@@ -1,31 +1,32 @@
 import ast
-import os
-from dataclasses import dataclass
-from typing import cast
+from typing import override, cast
 
 import dill
 
-from .abstract_fixture import AbstractFixture
-from .helpers import is_primitive, random_id
-from .reconstructor import Reconstructor
+from explotest.helpers import is_primitive, random_id
+from explotest.meta_fixture import MetaFixture
+from explotest.reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
-@dataclass
-class PickleReconstructor(Reconstructor):
-
-    def _ast(self, parameter, argument) -> AbstractFixture:
+class PickleReconstructor(AbstractReconstructor):
+    @override
+    def make_fixture(self, parameter, argument) :
         if is_primitive(argument):
-            return Reconstructor._reconstruct_primitive(parameter, argument)
+            return [super()._make_primitive_fixture(parameter, argument)]
 
         # create a unique ID for the pickled object
         pickled_id = random_id()
 
         # write the pickled object to file
-        os.makedirs(f"{self.file_path.parent}/pickled", exist_ok=True)
         pickled_path = f"{self.file_path.parent}/pickled/{parameter}_{pickled_id}.pkl"
-        with open(pickled_path, "wb") as f:
-            f.write(dill.dumps(argument))
-
+        try:
+            with open(pickled_path, "wb") as f:
+                f.write(dill.dumps(argument))
+        except TypeError:
+            print(f"[ERROR]: Unpickleable argument -- {type(argument)}")
+            return None
+        
+        # create the fixture to generate the parameter
         generated_ast = cast(
             ast.AST,
             # corresponds to with open(pickled_path, "rb") as f:
@@ -76,4 +77,4 @@ class PickleReconstructor(Reconstructor):
             ast.Return(value=ast.Name(id=parameter, ctx=ast.Load()))
         )
 
-        return AbstractFixture([], parameter, [generated_ast], ret)
+        return MetaFixture([], parameter, [generated_ast], ret)
