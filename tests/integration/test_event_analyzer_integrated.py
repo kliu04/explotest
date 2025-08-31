@@ -8,7 +8,6 @@ from pytest_mock import MockerFixture
 
 import src.explotest.event_analyzer_for_global_state as eva
 import src.explotest.global_state_detector as gsd
-import test_data.test_event_analyzer.simpleflask
 
 
 @pytest.fixture
@@ -18,7 +17,7 @@ def oai() -> openai.OpenAI:
 
 @pytest.fixture
 def analyzer(oai: openai.OpenAI) -> eva.EventAnalyzer:
-    p = pathlib.Path("../../test_data/test_event_analyzer/simpleflask.py")
+    p = pathlib.Path("../data/test_event_analyzer/simpleflask.py")
     print(os.getcwd())
     sample_file_flask = p.read_text()
     return eva.EventAnalyzer(

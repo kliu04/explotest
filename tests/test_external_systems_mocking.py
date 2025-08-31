@@ -7,7 +7,7 @@ import openai
 import pytest
 from dotenv import load_dotenv
 
-import test_data.test_event_analyzer.external_systems as test_fns
+import data.test_event_analyzer.external_systems as test_fns
 from explotest.event_analyzer_for_global_state import EventAnalyzer
 from explotest.global_state_detector import find_global_vars
 

@@ -120,21 +120,21 @@ def test_reconstruct_list(setup):
     pattern = r"clone_f = \[1, generate_Foo_.+, generate_Foo_.+\]"
     assert re.search(pattern, ast.unparse(mf.body[0]))
     
-    
-# def test_reconstruct_circular(setup):
-#     class Foo:
-#         pass
-#     class Bar:
-#         pass
-#     f = Foo()
-#     b = Bar()
-#     f.x = b
-#     b.x = f
-#     
-#     mf = setup.make_fixture("z", f)
-#     
-#     print(ast.unparse(mf.make_fixture()[0]))
-#     print(ast.unparse(mf.make_fixture()[1]))
+@pytest.mark.skip()
+def test_reconstruct_circular(setup):
+    class Foo:
+        pass
+    class Bar:
+        pass
+    f = Foo()
+    b = Bar()
+    f.x = b
+    b.x = f
+
+    mf = setup.make_fixture("z", f)
+
+    print(ast.unparse(mf.make_fixture()[0]))
+    print(ast.unparse(mf.make_fixture()[1]))
 
 
     
