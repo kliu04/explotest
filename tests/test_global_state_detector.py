@@ -48,7 +48,7 @@ src5_expected = [ExternalVariable(value=[], name="_in_memory_cache")]
         (ast.parse(src.read_text()), expected)
         for src, expected in zip(
             sorted(
-                Path("../test_data/test_global_state_detector").glob("**.py"),
+                Path("data/test_global_state_detector").glob("**.py"),
                 key=lambda obj: str(obj),
             ),
             [src1_expected, src2_expected, src3_expected, src4_expected, src5_expected],
