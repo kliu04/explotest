@@ -1,7 +1,6 @@
 # external_systems.py
 import psycopg  # Using psycopg for PostgreSQL
 import requests
-import os  # Used for getting database credentials from environment variables
 
 # --- 1. In-Memory Cache ---
 # Functions that use a global dictionary to simulate a cache.
