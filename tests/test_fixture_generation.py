@@ -44,7 +44,7 @@ class TestFixtureGeneration:
             Attribute(value=Name(id='pytest', ctx=Load()), attr='fixture', ctx=Load())])
 
 
-        assert ast.unparse(ast.fix_missing_locations(expected)) == ast.unparse(result.make_fixture)
+        assert ast.unparse(ast.fix_missing_locations(expected)) == ast.unparse(result.make_fixture()[0])
 
     def test_fixture_resolves_dependencies(self, var_name, body, ret):
         """
@@ -62,7 +62,7 @@ class TestFixtureGeneration:
         result_with_depends = MetaFixture([depend_abstract_factory_proxy_bean_singleton, depend_kevin_liu], var_name,
                                           body, Return(value=Constant(value=None)))
 
-        args_as_string = [arg.arg for arg in result_with_depends.make_fixture.args.args]
+        args_as_string = [arg.arg for arg in result_with_depends.make_fixture()[0].args.args]
 
         assert f'generate_{depend_abstract_factory_proxy_bean_singleton.parameter}' in args_as_string
         assert f'generate_{depend_kevin_liu.parameter}' in args_as_string

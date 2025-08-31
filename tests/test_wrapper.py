@@ -3,7 +3,6 @@ from IPython.core import magic_arguments
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 
 
-# from src.explotest.ipy.extension import generate_tests_wrapper
 
 
 def patched_argstring_pickle():
