@@ -26,6 +26,7 @@ class AbstractReconstructor(ABC):
     def _make_primitive_fixture(parameter: str, argument: Any) -> MetaFixture:
         """Helper to reconstruct primitives by simple assignment,
            since behaviour should be the same across all reconstruction modes."""
+        
         generated_ast = cast(
             ast.AST,
             # assign each primitive its argument as a constant

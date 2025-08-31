@@ -8,35 +8,50 @@ from explotest.meta_fixture import MetaFixture
 from explotest.reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
+class LazyProxy:
+    def __init__(self):
+        self._real = None
+    def set_real(self, obj):
+        self._real = obj
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
 class ArgumentReconstructor(AbstractReconstructor):
 
     @override
     def make_fixture(self, parameter, argument):
-        return self._make_fixture(parameter, argument, dict())
+        return self._make_fixture(parameter, argument, [])
 
-    def _make_fixture(self, parameter, argument, seen_args: dict[Any, MetaFixture]):
+    def _make_fixture(self, parameter, argument, seen_args: list[tuple[Any, Any]]):
         """
         :param parameter: The parameter (as a string) to create the MetaFixture for
         :param argument: Runtime value of the argument
         :param seen_args: Keeps track of seen arguments to avoid cycles
         :return: The MetaFixture needed to recreate the argument, or None if ExploTest fails.
         """
-        # seen_args has to be a list because some objects don't define __hash__
 
         if is_primitive(argument):
             return super()._make_primitive_fixture(parameter, argument)
 
-        if argument in seen_args:
-            return seen_args[argument]
+
+        # argument exists in mapping
+        for k, v in seen_args:
+            if k == argument:
+                return v
 
         if self.is_reconstructible(argument):
+            placeholder = LazyProxy()
+            seen_args.append((argument, placeholder))
             reconstructed = self._reconstruct_object_instance(parameter, argument, seen_args)
-            seen_args[argument] = reconstructed
+            placeholder.set_real(reconstructed)
             return reconstructed
 
         if self.backup_reconstructor:
+            placeholder = LazyProxy()
+            seen_args.append((argument, placeholder))
             reconstructed = self.backup_reconstructor.make_fixture(parameter, argument)
-            seen_args[argument] = reconstructed
+            placeholder.set_real(reconstructed)
             return reconstructed
 
         return None
@@ -76,7 +91,7 @@ class ArgumentReconstructor(AbstractReconstructor):
 
             if any(v is None for v in d.values()):
                 return None
-            
+
             assert all(v is not None for v in d.values())
 
             _clone = cast(
@@ -103,7 +118,7 @@ class ArgumentReconstructor(AbstractReconstructor):
             collection_asts = list(map(elt_to_ast, collection))
             if any(v is None for v in collection_asts):
                 return None
-            
+
             assert all(v is not None for v in collection_asts)
 
             _clone = cast(
@@ -154,7 +169,7 @@ class ArgumentReconstructor(AbstractReconstructor):
         clone_name = f"clone_{parameter}"
 
         if is_collection(obj):
-            return self._reconstruct_collection(parameter, obj)
+            return self._reconstruct_collection(parameter, obj, seen_args)
 
         module_name = self.file_path.stem
 
@@ -173,7 +188,7 @@ class ArgumentReconstructor(AbstractReconstructor):
                     attr="__new__",
                     ctx=ast.Load(),
                 ),
-                args=[qualified_class],
+                args=[],
             ),
         )
         _clone = ast.fix_missing_locations(_clone)
