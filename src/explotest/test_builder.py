@@ -9,7 +9,13 @@ from explotest.reconstructors.abstract_reconstructor import AbstractReconstructo
 
 class TestBuilder:
 
-    def __init__(self, fut_name: str, fut_path: Path, bound_args: inspect.BoundArguments, reconstructor: type[AbstractReconstructor]):
+    def __init__(
+        self,
+        fut_name: str,
+        fut_path: Path,
+        bound_args: inspect.BoundArguments,
+        reconstructor: type[AbstractReconstructor],
+    ):
         self.fut_name = fut_name
         self.fut_path = fut_path
         self.bound_args = bound_args
@@ -25,47 +31,43 @@ class TestBuilder:
             ast.Import(names=[ast.alias(name="os")]),
             ast.Import(names=[ast.alias(name="dill")]),
             ast.Import(names=[ast.alias(name="pytest")]),
-            ast.Import(names=[ast.alias(name=self.fut_path.stem)])
+            ast.Import(names=[ast.alias(name=self.fut_path.stem)]),
         ]
 
-        parameters =list(self.bound_args.arguments.keys())
+        parameters = list(self.bound_args.arguments.keys())
         arguments = list(self.bound_args.arguments.values())
-        
+
         self.reconstructor = self.reconstructor(self.fut_path)
-        
+
         fixtures = []
         for parameter, argument in zip(parameters, arguments):
             new_fixtures = self.reconstructor.make_fixture(parameter, argument)
             if new_fixtures is None:
                 return None
             fixtures.append(new_fixtures)
-                
+
         filename = self.fut_path.stem
         return_ast = ast.Assign(
-                targets=[ast.Name(id="return_value", ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(
-                        id=(
-                           f"{filename}.{self.fut_name}"
-                        ),
-                        ctx=ast.Load(),
-                    ),
-                    args=[ast.Name(id=param, ctx=ast.Load()) for param in parameters],
+            targets=[ast.Name(id="return_value", ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(
+                    id=(f"{filename}.{self.fut_name}"),
+                    ctx=ast.Load(),
                 ),
-            )
+                args=[ast.Name(id=param, ctx=ast.Load()) for param in parameters],
+            ),
+        )
         return_ast = ast.fix_missing_locations(return_ast)
 
         return MetaTest(self.fut_name, parameters, imports, fixtures, return_ast, [])
 
     def create_mocks(self):
         raise NotImplementedError("Oop")
-    
-    def create_asserts(self):
-        raise NotImplementedError("Oop")    
-    
-    # TODO: handle imports
-    
 
+    def create_asserts(self):
+        raise NotImplementedError("Oop")
+
+    # TODO: handle imports
 
     #
     # @staticmethod
