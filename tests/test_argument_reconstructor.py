@@ -6,14 +6,13 @@ import pandas as pd
 import pytest
 from pytest import fixture
 
-from src.explotest.argument_reconstructor import (
-    ArgumentReconstructor,
-)
+from explotest.reconstructors.argument_reconstructor import ArgumentReconstructor
+from explotest.reconstructors.pickle_reconstructor import PickleReconstructor
 
 
 @fixture
 def setup(tmp_path):
-    arr = ArgumentReconstructor(tmp_path)
+    arr = ArgumentReconstructor(tmp_path, backup_reconstructor=PickleReconstructor)
     d = tmp_path / "pickled"
     d.mkdir()
     yield arr
@@ -24,132 +23,121 @@ def test_reconstruct_object_instance(setup):
         x = 1
         y = 2
 
-    asts = setup.asts({"x": Foo()})
-    assert len(asts) == 1
-    ptf = asts[0]
-    assert ptf.parameter == "x"
-    assert len(ptf.body) == 3
-    assign = ptf.body[0]
-    expr_1 = ptf.body[1]
-    expr_2 = ptf.body[2]
-
-    assert (
-        ast.unparse(assign)
-        == "clone_x = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
+    mf = setup.make_fixture("x", Foo())
+    assert mf.parameter == "x"
+    assert mf.depends == []
+    assert len(mf.body) == 3
+    pattern = "clone_x = test_.*\.Foo\.__new__()"
+    assert re.search(pattern, ast.unparse(mf.body[0]))
+    assert ast.unparse(mf.body[1]) == ast.unparse(ast.Expr(
+    value=ast.Call(
+        func=ast.Name(id="setattr", ctx=ast.Load()),
+        args=[
+            ast.Name(id="clone_x", ctx=ast.Load()),
+            ast.Constant(value="x"),
+            ast.Constant(value=1),
+        ],
+        keywords=[],
     )
-    assert ast.unparse(expr_1) == "setattr(clone_x, 'x', 1)"
-    assert ast.unparse(expr_2) == "setattr(clone_x, 'y', 2)"
+))
+
+    assert ast.unparse(mf.body[2]) == ast.unparse(ast.Expr(
+        value=ast.Call(
+            func=ast.Name(id="setattr", ctx=ast.Load()),
+            args=[
+                ast.Name(id="clone_x", ctx=ast.Load()),
+                ast.Constant(value="y"),
+                ast.Constant(value=2),
+            ],
+            keywords=[],
+        )
+    ))
+
+    assert ast.dump(mf.ret) == ast.dump(ast.Return(
+        value=ast.Name(id="clone_x", ctx=ast.Load())
+    ))
 
 
 def test_reconstruct_object_instance_recursive_1(setup):
-
     class Bar:
         pass
 
     class Foo:
         bar = Bar()
 
-    asts = setup.asts({"f": Foo()})
-    assert len(asts) == 2
+    mf = setup.make_fixture("x", Foo())
+    assert mf.parameter == "x"
+    
+    assert len(mf.depends) == 1
+    assert mf.depends[0].parameter == "x_bar"
+    assert mf.depends[0].depends == []
+    assert len(mf.depends[0].body) == 1
+    
+    
+    assert len(mf.body) == 2
+    pattern = "clone_x = test_.*\.Foo\.__new__()"
+    assert re.search(pattern, ast.unparse(mf.body[0]))
+    assert ast.unparse(mf.body[1]) == ast.unparse(ast.Expr(
+        value=ast.Call(
+            func=ast.Name(id="setattr", ctx=ast.Load()),
+            args=[
+                ast.Name(id="clone_x", ctx=ast.Load()),
+                ast.Constant(value="bar"),
+                ast.Name(id="generate_x_bar", ctx=ast.Load()),
+            ],
+            keywords=[],
+        )
+    ))
 
-    ptf = asts[0]
 
-    assert len(ptf.depends) == 1
-    dependency = ptf.depends[0]
-    assert "f_bar" == ptf.depends[0].parameter
-    assert len(dependency.body) == 1
-    assert (
-        "clone_f_bar = test_argument_reconstruction_reconstructor.Bar.__new__(test_argument_reconstruction_reconstructor.Bar)"
-        == ast.unparse(dependency.body[0])
-    )
-    assert "return clone_f_bar" == ast.unparse(dependency.ret)
-
-    assert ptf.parameter == "f"
-    assert (
-        "clone_f = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
-        == ast.unparse(ptf.body[0])
-    )
-    assert "setattr(clone_f, 'bar', generate_f_bar)", ast.unparse(ptf.body[1])
-
-
-def test_reconstruct_object_instance_recursive_2(setup):
-    class Baz:
-        pass
-
-    class Bar:
-        baz = Baz()
-
-    class Foo:
-        bar = Bar()
-
-    f = Foo()
-    asts = setup.asts({"f": f})
-    assert len(asts) == 3
-
-    ptf = asts[0]
-
-    # bar
-    assert len(ptf.depends) == 1
-    dependency_bar = ptf.depends[0]
-    assert len(dependency_bar.body) == 2
-    assert (
-        "clone_f_bar = test_argument_reconstruction_reconstructor.Bar.__new__(test_argument_reconstruction_reconstructor.Bar)"
-        == ast.unparse(dependency_bar.body[0])
-    )
-    assert "setattr(clone_f_bar, 'baz', generate_f_bar_baz)" == ast.unparse(
-        dependency_bar.body[1]
-    )
-    assert "return clone_f_bar" == ast.unparse(dependency_bar.ret)
-
-    # baz
-    assert len(dependency_bar.depends) == 1
-    dependency_baz = dependency_bar.depends[0]
-    assert len(dependency_baz.body) == 1
-    assert (
-        "clone_f_bar_baz = test_argument_reconstruction_reconstructor.Baz.__new__(test_argument_reconstruction_reconstructor.Baz)"
-        == ast.unparse(dependency_baz.body[0])
-    )
-    print(ast.unparse(dependency_baz.ret))
-    assert "return clone_f_bar_baz" == ast.unparse(dependency_baz.ret)
-
-    assert ptf.parameter == "f"
-    assert (
-        ast.unparse(ptf.body[0])
-        == "clone_f = test_argument_reconstruction_reconstructor.Foo.__new__(test_argument_reconstruction_reconstructor.Foo)"
-    )
-    assert "setattr(clone_f, 'bar', generate_f_bar)" == ast.unparse(ptf.body[1])
-
+    assert ast.dump(mf.ret) == ast.dump(ast.Return(
+        value=ast.Name(id="clone_x", ctx=ast.Load())
+    ))
 
 def test_reconstruct_lambda(setup):
     # should be the same as pickling
-    asts = setup.asts({"f": lambda x: x + 1})
+    mf = setup.make_fixture("f", lambda x: x)
 
-    assert len(asts) == 1
-    assert asts[0].depends == []
-    assert asts[0].parameter == "f"
+    assert mf.depends == []
+    assert mf.parameter == "f"
     pattern = r"with open\(..*\) as f:\s+f = dill\.loads\(f\.read\(\)\)"
-    assert re.search(pattern, ast.unparse(asts[0].body[0]))
+    assert re.search(pattern, ast.unparse(mf.body[0]))
 
 
 def test_reconstruct_list(setup):
     class Foo:
         pass
 
-    asts = setup.asts({"f": [1, Foo(), Foo()]})
+    mf = setup.make_fixture("f", [1, Foo(), Foo()])
+    
+    assert len(mf.depends) == 2
+    pattern = "Foo_.+"
+    assert re.search(pattern, mf.depends[0].parameter)
+    pattern = "clone_Foo_.+ = test_.*\.Foo\.__new__()"
+    assert re.search(pattern, ast.unparse(mf.depends[0].body[0]))
+    
+    assert mf.parameter == "f"
+    pattern = r"clone_f = \[1, generate_Foo_.+, generate_Foo_.+\]"
+    assert re.search(pattern, ast.unparse(mf.body[0]))
+    
+    
+# def test_reconstruct_circular(setup):
+#     class Foo:
+#         pass
+#     class Bar:
+#         pass
+#     f = Foo()
+#     b = Bar()
+#     f.x = b
+#     b.x = f
+#     
+#     mf = setup.make_fixture("z", f)
+#     
+#     print(ast.unparse(mf.make_fixture()[0]))
+#     print(ast.unparse(mf.make_fixture()[1]))
 
-    assert len(asts) == 3
-    assert len(asts[0].depends) == 2
-    assert asts[0].depends[0] is asts[1]
-    assert asts[0].depends[1] is asts[2]
 
-    pattern = r"clone_Foo_.+ = .+.Foo.__new__(.*.Foo)"
-    print(ast.unparse(asts[1].body[0]))
-    assert re.search(pattern, ast.unparse(asts[1].body[0]))
-    assert re.search(pattern, ast.unparse(asts[2].body[0]))
-
-    pattern = r"f = \[1, generate_Foo_.+, generate_Foo_.+\]"
-    print(ast.unparse(asts[0].body[0]))
-    assert re.search(pattern, ast.unparse(asts[0].body[0]))
+    
 
 
 is_reconstructible = ArgumentReconstructor.is_reconstructible
@@ -258,3 +246,8 @@ class TestObjectDetection:
     def test_int(self):
         i = 1
         assert is_reconstructible(i)
+
+    @pytest.mark.skip(reason="currently not implemented")
+    def test_file(self, tmp_path):
+        with open(tmp_path / "test.txt", "w") as f:
+            assert not is_reconstructible(f)

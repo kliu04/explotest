@@ -14,8 +14,11 @@ class MetaFixture:
     parameter: str  # parameter that this fixture generates
     body: list[ast.stmt]  # body of the fixture
     ret: ast.Return | ast.Yield  # return value of the fixture
-
+    
     def make_fixture(self) -> list[ast.FunctionDef]:
+        return self._make_fixture(set())
+    
+    def _make_fixture(self, seen) -> list[ast.FunctionDef]:
         """
         Concretize this abstract fixture into a PyTest Fixture.
 
@@ -26,9 +29,12 @@ class MetaFixture:
         pytest_deco = ast.Attribute(
             value=ast.Name(id="pytest", ctx=ast.Load()), attr="fixture", ctx=ast.Load()
         )
-
-        # fixtures for all dependencies of this fixture
-        dependency_fixtures = [dep.make_fixture() for dep in self.depends]
+        
+        if self.parameter in seen:
+            return []
+        seen.add(self.parameter)
+        
+        dependency_fixtures = [dep._make_fixture(seen) for dep in self.depends]
 
         # creates a new function definition with name generate_{parameter}
         return [ast.fix_missing_locations(

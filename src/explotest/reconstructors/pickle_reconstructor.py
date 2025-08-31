@@ -12,7 +12,7 @@ class PickleReconstructor(AbstractReconstructor):
     @override
     def make_fixture(self, parameter, argument) :
         if is_primitive(argument):
-            return [super()._make_primitive_fixture(parameter, argument)]
+            return super()._make_primitive_fixture(parameter, argument)
 
         # create a unique ID for the pickled object
         pickled_id = random_id()
