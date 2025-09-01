@@ -80,11 +80,11 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                 # call and capture the return of the function-under-test
                 res: Any = _func(*args, **kwargs)
 
-            test_builder = TestBuilder(
-                fut_name, fut_path, bound_args.arguments, reconstructor
-            )
+            llm_result = eva.filtered_vars
+            bound_args = {**dict(bound_args.arguments), **llm_result}
+            test_builder = TestBuilder(fut_name, fut_path, bound_args, reconstructor)
 
-            if (llm_result := eva.filtered_vars) != {}:
+            if len(llm_result) > 0:
                 test_builder.build_mocks(llm_result)
 
             test = test_builder.build_test()
