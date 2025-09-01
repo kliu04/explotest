@@ -80,18 +80,13 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                 # call and capture the return of the function-under-test
                 res: Any = _func(*args, **kwargs)
 
-            if not (llm_result := eva.filtered_vars):
-                # TODO: handle the case where the LLm fails
-                import sys
-
-                sys.exit(1)
-
-            # bound_args = {**dict(bound_args.arguments), **llm_result}
-
             test_builder = TestBuilder(
                 fut_name, fut_path, bound_args.arguments, reconstructor
             )
-            test_builder.build_mocks(llm_result)
+
+            if (llm_result := eva.filtered_vars) != {}:
+                test_builder.build_mocks(llm_result)
+
             test = test_builder.build_test()
 
             # write test to a file

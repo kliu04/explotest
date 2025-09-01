@@ -18,6 +18,7 @@ class MetaTest:
     ]  # argument generators for the function-under-test
     act_phase: ast.Assign  # calling the function-under-test
     asserts: list[ast.Assert]  # unit test assertions
+    mock: ast.FunctionDef | None
     # definitions: list[ast.AST]  # for REPL (Kevin: not sure what this does)
 
     def make_test(self) -> ast.Module:
@@ -27,6 +28,7 @@ class MetaTest:
         return ast.fix_missing_locations(
             ast.Module(
                 body=self.imports
+                + ([self.mock] if self.mock else [])
                 + [fixture.make_fixture() for fixture in self.direct_fixtures]
                 + [self._make_main_function()]
             )

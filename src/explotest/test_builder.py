@@ -20,6 +20,7 @@ class TestBuilder:
         self.fut_path = fut_path
         self.bound_args = bound_args
         self.reconstructor = reconstructor
+        self.reconstructor = self.reconstructor(self.fut_path)
 
     def build_test(self) -> Optional[MetaTest]:
         """
@@ -36,8 +37,6 @@ class TestBuilder:
 
         parameters = list(self.bound_args.keys())
         arguments = list(self.bound_args.values())
-
-        self.reconstructor = self.reconstructor(self.fut_path)
 
         fixtures = []
         for parameter, argument in zip(parameters, arguments):
@@ -59,9 +58,12 @@ class TestBuilder:
         )
         return_ast = ast.fix_missing_locations(return_ast)
 
-        return MetaTest(self.fut_name, parameters, imports, fixtures, return_ast, [])
+        return MetaTest(
+            self.fut_name, parameters, imports, fixtures, return_ast, [], self.mock
+        )
 
     def build_mocks(self, d: dict[str, Any]):
+        d = {k: self.reconstructor.make_fixture(k, v) for k, v in d.items()}
         """
         Creates a function that uses the mock_ptf_names
         """
@@ -74,9 +76,7 @@ class TestBuilder:
                 ]
             ),
             body=(
-                [ast.Global(names=list(d.keys()))]
-                if len(d) > 0
-                else []
+                ([ast.Global(names=list(d.keys()))] if len(d) > 0 else [])
                 + [
                     ast.Assign(
                         targets=[ast.Name(id=name, ctx=ast.Store())],
