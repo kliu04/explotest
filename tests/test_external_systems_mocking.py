@@ -8,7 +8,7 @@ import pytest
 from dotenv import load_dotenv
 
 import data.test_event_analyzer.external_systems as test_fns
-from explotest.event_analyzer_for_global_state import EventAnalyzer
+from explotest.event_analyzer import EventAnalyzer
 from explotest.global_state_detector import find_global_vars
 
 load_dotenv()

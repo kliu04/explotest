@@ -46,6 +46,7 @@ def uniquify(name: str) -> str:
 def sanitize_name(name: str) -> str:
     return name.replace(".", "_")
 
+
 def flatten(x):
     if isinstance(x, Iterable):
         return [a for i in x for a in flatten(i)]
