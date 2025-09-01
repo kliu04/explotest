@@ -6,7 +6,7 @@ import openai
 import pytest
 from dotenv import load_dotenv
 
-from explotest.event_analyzer_for_global_state import EventAnalyzer
+from explotest.event_analyzer import EventAnalyzer
 
 
 @pytest.fixture

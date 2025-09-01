@@ -1,7 +1,6 @@
 import ast
-import inspect
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from explotest.meta_test import MetaTest
 from explotest.reconstructors.abstract_reconstructor import AbstractReconstructor
@@ -13,9 +12,10 @@ class TestBuilder:
         self,
         fut_name: str,
         fut_path: Path,
-        bound_args: inspect.BoundArguments,
+        bound_args: dict[str, Any],
         reconstructor: type[AbstractReconstructor],
     ):
+        self.mock = None
         self.fut_name = fut_name
         self.fut_path = fut_path
         self.bound_args = bound_args
@@ -34,8 +34,8 @@ class TestBuilder:
             ast.Import(names=[ast.alias(name=self.fut_path.stem)]),
         ]
 
-        parameters = list(self.bound_args.arguments.keys())
-        arguments = list(self.bound_args.arguments.values())
+        parameters = list(self.bound_args.keys())
+        arguments = list(self.bound_args.values())
 
         self.reconstructor = self.reconstructor(self.fut_path)
 
@@ -51,7 +51,7 @@ class TestBuilder:
             targets=[ast.Name(id="return_value", ctx=ast.Store())],
             value=ast.Call(
                 func=ast.Name(
-                    id=(f"{filename}.{self.fut_name}"),
+                    id=f"{filename}.{self.fut_name}",
                     ctx=ast.Load(),
                 ),
                 args=[ast.Name(id=param, ctx=ast.Load()) for param in parameters],
@@ -61,8 +61,64 @@ class TestBuilder:
 
         return MetaTest(self.fut_name, parameters, imports, fixtures, return_ast, [])
 
-    def create_mocks(self):
-        raise NotImplementedError("Oop")
+    def build_mocks(self, d: dict[str, Any]):
+        """
+        Creates a function that uses the mock_ptf_names
+        """
+        defn = ast.FunctionDef(
+            name="mock_setup",
+            args=ast.arguments(
+                args=[
+                    ast.arg(arg=f"generate_{fixture.parameter}")
+                    for fixture in d.values()
+                ]
+            ),
+            body=(
+                [ast.Global(names=list(d.keys()))]
+                if len(d) > 0
+                else []
+                + [
+                    ast.Assign(
+                        targets=[ast.Name(id=name, ctx=ast.Store())],
+                        value=ast.Name(
+                            id=f"generate_{fixture.parameter}", ctx=ast.Load()
+                        ),
+                    )
+                    for name, fixture in d.items()
+                ]
+                + [ast.Import(names=[ast.alias(name="os")])]
+                + [
+                    ast.Assign(
+                        targets=[
+                            ast.Subscript(
+                                value=ast.Attribute(
+                                    value=ast.Name(id="os", ctx=ast.Load()),
+                                    attr="environ",
+                                    ctx=ast.Load(),
+                                ),
+                                slice=ast.Constant(value="RUNNING_GENERATED_TEST"),
+                                ctx=ast.Store(),
+                            )
+                        ],
+                        value=ast.Constant(value="true"),
+                    )
+                ]
+            ),
+            decorator_list=[
+                ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Name(id="pytest", ctx=ast.Load()),
+                        attr="fixture",
+                        ctx=ast.Load(),
+                    ),
+                    keywords=[
+                        ast.keyword(arg="autouse", value=ast.Constant(value=True))
+                    ],
+                )
+            ],
+        )
+
+        self.mock = ast.fix_missing_locations(defn)
 
     def create_asserts(self):
         raise NotImplementedError("Oop")
@@ -72,63 +128,7 @@ class TestBuilder:
     #
     # @staticmethod
     # def create_mocks(ptf_mapping: dict[str, AbstractFixture]) -> ast.FunctionDef:
-    #     """
-    #     Creates a function that uses the mock_ptf_names
-    #     """
-    #     defn = ast.FunctionDef(
-    #         name="mock_setup",
-    #         args=ast.arguments(
-    #             args=[
-    #                 ast.arg(arg=f"generate_{fixture.parameter}")
-    #                 for fixture in ptf_mapping.values()
-    #             ]
-    #         ),
-    #         body=(
-    #             [ast.Global(names=list(ptf_mapping.keys()))]
-    #             if len(ptf_mapping) > 0
-    #             else []
-    #             + [
-    #                 ast.Assign(
-    #                     targets=[ast.Name(id=name, ctx=ast.Store())],
-    #                     value=ast.Name(
-    #                         id=f"generate_{fixture.parameter}", ctx=ast.Load()
-    #                     ),
-    #                 )
-    #                 for name, fixture in ptf_mapping.items()
-    #             ]
-    #             + [ast.Import(names=[ast.alias(name="os")])]
-    #             + [
-    #                 ast.Assign(
-    #                     targets=[
-    #                         ast.Subscript(
-    #                             value=ast.Attribute(
-    #                                 value=ast.Name(id="os", ctx=ast.Load()),
-    #                                 attr="environ",
-    #                                 ctx=ast.Load(),
-    #                             ),
-    #                             slice=ast.Constant(value="RUNNING_GENERATED_TEST"),
-    #                             ctx=ast.Store(),
-    #                         )
-    #                     ],
-    #                     value=ast.Constant(value="true"),
-    #                 )
-    #             ]
-    #         ),
-    #         decorator_list=[
-    #             ast.Call(
-    #                 func=ast.Attribute(
-    #                     value=ast.Name(id="pytest", ctx=ast.Load()),
-    #                     attr="fixture",
-    #                     ctx=ast.Load(),
-    #                 ),
-    #                 keywords=[
-    #                     ast.keyword(arg="autouse", value=ast.Constant(value=True))
-    #                 ],
-    #             )
-    #         ],
-    #     )
-    #
-    #     return ast.fix_missing_locations(defn)
+
     #
     # def generate(
     #     self,

@@ -7,7 +7,7 @@ import pytest
 import requests
 from dotenv import load_dotenv
 
-from explotest.event_analyzer_for_global_state import EventAnalyzer
+from explotest.event_analyzer import EventAnalyzer
 from explotest.global_state_detector import find_global_vars, find_function_def
 from explotest.test_builder import TestBuilder
 

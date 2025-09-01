@@ -32,7 +32,7 @@ class TestRunner:
         with NamedTemporaryFile(
             "w", dir=self.output_dir, prefix="test_", suffix=".py"
         ) as tf:
-            tf.write(ast.unparse(self.target_test.make_test))
+            tf.write(ast.unparse(self.target_test.make_test()))
             tf.flush()
 
             tem1 = TestExecutionMonitor(

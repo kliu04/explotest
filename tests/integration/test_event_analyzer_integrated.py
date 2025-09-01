@@ -6,7 +6,7 @@ import openai
 import pytest
 from pytest_mock import MockerFixture
 
-import src.explotest.event_analyzer_for_global_state as eva
+import src.explotest.event_analyzer as eva
 import src.explotest.global_state_detector as gsd
 
 
