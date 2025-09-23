@@ -7,8 +7,6 @@ from openai.types.chat import (
 )
 
 
-# from .explore import explore
-
 class LLMAnalyzer:
     llm: openai.OpenAI
     fn_def: ast.FunctionDef
