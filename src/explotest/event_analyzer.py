@@ -14,7 +14,7 @@ from typing import Any
 
 import openai
 
-from explotest.llm_analysis_pass import LLMAnalyzer
+from .llm_analysis_pass import LLMAnalyzer
 
 
 class EventAnalyzer:

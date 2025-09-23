@@ -3,14 +3,14 @@ from typing import override, cast
 
 import dill
 
-from explotest.helpers import is_primitive, random_id
-from explotest.meta_fixture import MetaFixture
-from explotest.reconstructors.abstract_reconstructor import AbstractReconstructor
+from ..helpers import is_primitive, random_id
+from ..meta_fixture import MetaFixture
+from ..reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
 class PickleReconstructor(AbstractReconstructor):
     @override
-    def make_fixture(self, parameter, argument) :
+    def make_fixture(self, parameter, argument):
         if is_primitive(argument):
             return super()._make_primitive_fixture(parameter, argument)
 
@@ -23,9 +23,11 @@ class PickleReconstructor(AbstractReconstructor):
             with open(pickled_path, "wb") as f:
                 f.write(dill.dumps(argument))
         except TypeError:
-            print(f"[ERROR]: Cannot pickle argument '{parameter}' of type {type(argument).__name__}")
+            print(
+                f"[ERROR]: Cannot pickle argument '{parameter}' of type {type(argument).__name__}"
+            )
             return None
-        
+
         # create the fixture to generate the parameter
         generated_ast = cast(
             ast.AST,

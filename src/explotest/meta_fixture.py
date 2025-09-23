@@ -2,7 +2,7 @@ import ast
 from dataclasses import dataclass
 from typing import Self
 
-from explotest import helpers
+import helpers
 
 
 @dataclass(frozen=True)

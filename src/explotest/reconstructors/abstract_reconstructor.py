@@ -4,15 +4,16 @@ from abc import ABC
 from pathlib import Path
 from typing import Any, Optional, cast, Self
 
-from explotest.meta_fixture import MetaFixture
+from ..meta_fixture import MetaFixture
 
 
 class AbstractReconstructor(ABC):
     def __init__(self, file_path: Path, backup_reconstructor: type[Self] | None = None):
-        self.file_path = file_path # where to place any files, if needed
+        self.file_path = file_path  # where to place any files, if needed
         os.makedirs(f"{self.file_path.parent}/pickled", exist_ok=True)
-        self.backup_reconstructor = backup_reconstructor(file_path) if backup_reconstructor else None
-        
+        self.backup_reconstructor = (
+            backup_reconstructor(file_path) if backup_reconstructor else None
+        )
 
     def make_fixture(self, parameter: str, argument: Any) -> Optional[MetaFixture]:
         """
@@ -25,8 +26,8 @@ class AbstractReconstructor(ABC):
     @staticmethod
     def _make_primitive_fixture(parameter: str, argument: Any) -> MetaFixture:
         """Helper to reconstruct primitives by simple assignment,
-           since behaviour should be the same across all reconstruction modes."""
-        
+        since behaviour should be the same across all reconstruction modes."""
+
         generated_ast = cast(
             ast.AST,
             # assign each primitive its argument as a constant

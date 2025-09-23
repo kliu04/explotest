@@ -2,8 +2,8 @@ import ast
 from pathlib import Path
 from typing import Optional, Any
 
-from explotest.meta_test import MetaTest
-from explotest.reconstructors.abstract_reconstructor import AbstractReconstructor
+from .meta_test import MetaTest
+from .reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
 class TestBuilder:
