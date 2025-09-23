@@ -3,16 +3,18 @@ import inspect
 from collections import deque
 from typing import override, Any, Optional, cast
 
-from explotest.helpers import is_primitive, collection_t, random_id, is_collection
-from explotest.meta_fixture import MetaFixture
-from explotest.reconstructors.abstract_reconstructor import AbstractReconstructor
+from ..helpers import is_primitive, collection_t, random_id, is_collection
+from ..meta_fixture import MetaFixture
+from ..reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
 class LazyProxy:
     def __init__(self):
         self._real = None
+
     def set_real(self, obj):
         self._real = obj
+
     def __getattr__(self, name):
         return getattr(self._real, name)
 
@@ -34,7 +36,6 @@ class ArgumentReconstructor(AbstractReconstructor):
         if is_primitive(argument):
             return super()._make_primitive_fixture(parameter, argument)
 
-
         # argument exists in mapping
         for k, v in seen_args:
             if k == argument:
@@ -43,7 +44,9 @@ class ArgumentReconstructor(AbstractReconstructor):
         if self.is_reconstructible(argument):
             placeholder = LazyProxy()
             seen_args.append((argument, placeholder))
-            reconstructed = self._reconstruct_object_instance(parameter, argument, seen_args)
+            reconstructed = self._reconstruct_object_instance(
+                parameter, argument, seen_args
+            )
             placeholder.set_real(reconstructed)
             return reconstructed
 
@@ -56,7 +59,9 @@ class ArgumentReconstructor(AbstractReconstructor):
 
         return None
 
-    def _reconstruct_collection(self, parameter: str, collection: collection_t, seen_args) -> Optional[MetaFixture]:
+    def _reconstruct_collection(
+        self, parameter: str, collection: collection_t, seen_args
+    ) -> Optional[MetaFixture]:
         """
         Given a parameter and a collection, attempt to recreate the collection.
         :param parameter:
@@ -100,7 +105,7 @@ class ArgumentReconstructor(AbstractReconstructor):
                     targets=[ast.Name(id=f"clone_{parameter}", ctx=ast.Store())],
                     value=ast.Dict(
                         keys=list(d.keys()),
-                        values=list(d.values()), # type: ignore
+                        values=list(d.values()),  # type: ignore
                     ),
                 ),
             )
@@ -125,7 +130,7 @@ class ArgumentReconstructor(AbstractReconstructor):
                 ast.AST,
                 ast.Assign(
                     targets=[ast.Name(id=f"clone_{parameter}", ctx=ast.Store())],
-                    value=collection_ast_type( # type: ignore
+                    value=collection_ast_type(  # type: ignore
                         elts=collection_asts,
                         ctx=ast.Load(),
                     ),
@@ -140,7 +145,9 @@ class ArgumentReconstructor(AbstractReconstructor):
         )
         return MetaFixture(deps, parameter, meta_fixture_body, ret)
 
-    def _reconstruct_object_instance(self, parameter: str, obj: Any, seen_args) -> Optional[MetaFixture]:
+    def _reconstruct_object_instance(
+        self, parameter: str, obj: Any, seen_args
+    ) -> Optional[MetaFixture]:
         """Return an MetaFixture representation of a clone of obj by setting attributes equal to obj."""
 
         # taken from inspect.getmembers(Foo()) on empty class Foo
@@ -158,7 +165,12 @@ class ArgumentReconstructor(AbstractReconstructor):
         # filter out properties
         # type(obj) is the class obj is defined from
         # x[0] is the name of the variable
-        attributes = list(filter(lambda x : not isinstance(getattr(type(obj), x[0], None), property), attributes))
+        attributes = list(
+            filter(
+                lambda x: not isinstance(getattr(type(obj), x[0], None), property),
+                attributes,
+            )
+        )
 
         ptf_body: list[ast.AST] = []
         deps: list[MetaFixture] = []
@@ -210,7 +222,9 @@ class ArgumentReconstructor(AbstractReconstructor):
                 uniquified_name = (
                     f"{parameter}_{attribute_name}"  # needed to avoid name collisions
                 )
-                new_fixture = self._make_fixture(uniquified_name, attribute_value, seen_args)
+                new_fixture = self._make_fixture(
+                    uniquified_name, attribute_value, seen_args
+                )
                 if new_fixture is None:
                     return None
                 deps.append(new_fixture)

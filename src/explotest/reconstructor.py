@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Any, Self
 
-from explotest.meta_fixture import MetaFixture
+from .meta_fixture import MetaFixture
 
 
 @dataclass
