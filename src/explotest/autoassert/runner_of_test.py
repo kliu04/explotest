@@ -1,6 +1,7 @@
 import ast
 import os
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -17,6 +18,17 @@ from explotest.meta_test import MetaTest
 class ExecutionResult:
     result_from_run_one: Any
     result_from_run_two: Any
+    
+
+
+@contextmanager
+def add_sys_path(path: str):
+    sys.path.append(path)
+    try:
+        yield
+    finally:
+        sys.path.remove(path)
+
 
 
 @dataclass
@@ -46,9 +58,8 @@ class TestRunner:
             test_path = os.path.abspath(temp_file.name)
             test_dir = os.path.dirname(temp_file.name)
 
-            sys.path.append(test_dir)
-            retcode_first_run = pytest.main(["-x", test_path])
-            sys.path.remove(test_dir)
+            with add_sys_path(test_dir):
+                retcode_first_run = pytest.main(["-x", test_path])
 
             if retcode_first_run != ExitCode.OK:
                 return None
@@ -60,10 +71,9 @@ class TestRunner:
             )
 
             tem2.start_tracking()
-
-            sys.path.append(test_dir)
-            retcode_second_run = pytest.main(["-x", test_path])
-            sys.path.remove(test_dir)
+            
+            with add_sys_path(test_dir):
+                retcode_second_run = pytest.main(["-x", test_path])
 
             result_from_second_run = tem2.end_tracking()
 
