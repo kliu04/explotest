@@ -14,6 +14,7 @@ class TestBuilder:
         fut_path: Path,
         bound_args: dict[str, Any],
         reconstructor: type[AbstractReconstructor],
+        package_name: Optional[str],
     ):
         self.mock = None
         self.fut_name = fut_name
@@ -21,6 +22,7 @@ class TestBuilder:
         self.bound_args = bound_args
         self.reconstructor = reconstructor
         self.reconstructor = self.reconstructor(self.fut_path)
+        self.package_name = package_name
 
     def build_test(self) -> Optional[MetaTest]:
         """
@@ -28,12 +30,21 @@ class TestBuilder:
         :return: a MetaTest if ExploTest can create a meta unit test, and None if it cannot.
         """
 
-        imports = [
+        imports: list[ast.Import | ast.ImportFrom] = [
             ast.Import(names=[ast.alias(name="os")]),
             ast.Import(names=[ast.alias(name="dill")]),
             ast.Import(names=[ast.alias(name="pytest")]),
-            ast.Import(names=[ast.alias(name=self.fut_path.stem)]),
         ]
+
+        # dynamically handle import depending on if running as a package or script
+        if self.package_name is None:
+            imports.append(ast.Import(names=[ast.alias(name=self.fut_path.stem)]))
+        else:
+            imports.append(
+                ast.ImportFrom(
+                    module=self.package_name, names=[ast.alias(name=self.fut_path.stem)]
+                )
+            )
 
         parameters = list(self.bound_args.keys())
         arguments = list(self.bound_args.values())

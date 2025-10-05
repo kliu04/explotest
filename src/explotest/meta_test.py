@@ -1,6 +1,7 @@
 import ast
 from dataclasses import dataclass
 
+from .helpers import sanitize_name
 from .meta_fixture import MetaFixture
 
 
@@ -61,7 +62,7 @@ class MetaTest:
         """
 
         main_function = ast.FunctionDef(
-            name=f"test_{self.fut_name}",
+            name=f"test_{sanitize_name(self.fut_name)}",
             # parameters that the main function takes in (requests fixtures)
             args=ast.arguments(
                 args=[

@@ -2,6 +2,7 @@ import ast
 import functools
 import inspect
 import os
+import sys
 from pathlib import Path
 from typing import Any, Callable
 from typing import Literal
@@ -63,7 +64,13 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             res: Any = _func(*args, **kwargs)
 
             bound_args = {**dict(bound_args.arguments)}
-            test_builder = TestBuilder(fut_name, fut_path, bound_args, reconstructor)
+            test_builder = TestBuilder(
+                fut_name,
+                fut_path,
+                bound_args,
+                reconstructor,
+                getattr(sys.modules[_func.__module__], "__package__", None),
+            )
 
             test = test_builder.build_test()
 
