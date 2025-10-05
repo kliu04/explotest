@@ -6,12 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 from typing import Literal
 
-import openai
-from dotenv import load_dotenv
-
 from .autoassert.runner_of_test import TestRunner
-from .event_analyzer import EventAnalyzer
-from .global_state_detector import find_function_def
 from .helpers import Mode, sanitize_name, is_running_under_test
 from .reconstructors.argument_reconstructor import ArgumentReconstructor
 from .reconstructors.pickle_reconstructor import PickleReconstructor
@@ -65,27 +60,10 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                 case _:
                     assert False
 
-            load_dotenv()
-            eva = EventAnalyzer(
-                (_func.__name__, str(fut_path)),
-                find_function_def(ast.parse(inspect.getsource(_func)), _func.__name__),
-                openai.OpenAI(
-                    base_url=r"https://generativelanguage.googleapis.com/v1beta/openai/",
-                    api_key=os.getenv("GEMINI_KEY"),
-                ),
-                model="gemini-2.5-flash-lite-preview-06-17",
-            )
+            res: Any = _func(*args, **kwargs)
 
-            with eva:
-                # call and capture the return of the function-under-test
-                res: Any = _func(*args, **kwargs)
-
-            llm_result = eva.filtered_vars
-            bound_args = {**dict(bound_args.arguments), **llm_result}
+            bound_args = {**dict(bound_args.arguments)}
             test_builder = TestBuilder(fut_name, fut_path, bound_args, reconstructor)
-
-            if len(llm_result) > 0:
-                test_builder.build_mocks(llm_result)
 
             test = test_builder.build_test()
 
