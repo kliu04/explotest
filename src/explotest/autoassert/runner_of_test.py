@@ -1,4 +1,6 @@
 import ast
+import os
+import sys
 from dataclasses import dataclass
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -31,16 +33,22 @@ class TestRunner:
         """
         with NamedTemporaryFile(
             "w", dir=self.output_dir, prefix="test_", suffix=".py"
-        ) as tf:
-            tf.write(ast.unparse(self.target_test.make_test()))
-            tf.flush()
+        ) as temp_file:
+            temp_file.write(ast.unparse(self.target_test.make_test()))
+            temp_file.flush()
 
             tem1 = TestExecutionMonitor(
                 self.function_under_test_name, self.function_under_test_path
             )
 
             tem1.start_tracking()
-            retcode_first_run = pytest.main(["-x", tf.name])
+
+            test_path = os.path.abspath(temp_file.name)
+            test_dir = os.path.dirname(temp_file.name)
+
+            sys.path.append(test_dir)
+            retcode_first_run = pytest.main(["-x", test_path])
+            sys.path.remove(test_dir)
 
             if retcode_first_run != ExitCode.OK:
                 return None
@@ -53,7 +61,9 @@ class TestRunner:
 
             tem2.start_tracking()
 
-            retcode_second_run = pytest.main(["-x", tf.name])
+            sys.path.append(test_dir)
+            retcode_second_run = pytest.main(["-x", test_path])
+            sys.path.remove(test_dir)
 
             result_from_second_run = tem2.end_tracking()
 
