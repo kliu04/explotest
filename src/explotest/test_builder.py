@@ -76,7 +76,7 @@ class TestBuilder:
     def build_mocks(self, d: dict[str, Any]):
         d = {k: self.reconstructor.make_fixture(k, v) for k, v in d.items()}
         """
-        Creates a function that uses the mock_ptf_names
+        Given a dictionary of variables to mock and mock values, generate mock fixtures.
         """
         defn = ast.FunctionDef(
             name="mock_setup",
@@ -133,52 +133,3 @@ class TestBuilder:
 
     def create_asserts(self):
         raise NotImplementedError("Oop")
-
-    # TODO: handle imports
-
-    #
-    # @staticmethod
-    # def create_mocks(ptf_mapping: dict[str, AbstractFixture]) -> ast.FunctionDef:
-
-    #
-    # def generate(
-    #     self,
-    #     bindings: Dict[str, Any],
-    #     definitions: list[ast.FunctionDef | ast.ClassDef | ast.AsyncFunctionDef] = None,
-    #     injected_imports: list[ast.Import | ast.ImportFrom] = None,
-    # ) -> AbstractTest:
-    #     """
-    #     Creates a test for the function-under-test specified by the TestGenerator.
-    #     Provide a set of parameter bindings (parameter -> value)
-    #     to create a test that reconstructs those bindings into a test.
-    #     """
-    #     if definitions is None:
-    #         definitions = []
-    #
-    #     params = list(bindings.keys())
-    #     filename = self.file_path.stem if str(self.file_path) != "." else None
-    #
-    #     fixture = self.reconstructor.asts(bindings)
-    #     return_ast = ast.Assign(
-    #         targets=[ast.Name(id="return_value", ctx=ast.Store())],
-    #         value=ast.Call(
-    #             func=ast.Name(
-    #                 id=(
-    #                     f"{filename}.{self.function_name}"
-    #                     if filename is not None
-    #                     else self.function_name
-    #                 ),
-    #                 ctx=ast.Load(),
-    #             ),
-    #             args=[ast.Name(id=param, ctx=ast.Load()) for param in params],
-    #         ),
-    #     )
-    #     return_ast = ast.fix_missing_locations(return_ast)
-    #     return AbstractTest(
-    #         sanitize_name(self.function_name),
-    #         self._imports(filename, injected_imports),
-    #         fixture,
-    #         return_ast,
-    #         [],
-    #         definitions,
-    #     )
