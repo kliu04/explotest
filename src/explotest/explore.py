@@ -72,6 +72,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                 getattr(sys.modules[_func.__module__], "__package__", None),
             )
 
+            test_builder.build_mocks({})
             test = test_builder.build_test()
 
             # write test to a file
