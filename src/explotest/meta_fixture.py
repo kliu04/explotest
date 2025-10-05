@@ -2,7 +2,7 @@ import ast
 from dataclasses import dataclass
 from typing import Self
 
-import helpers
+from .helpers import flatten
 
 
 @dataclass(frozen=True)
@@ -52,4 +52,4 @@ class MetaFixture:
                     decorator_list=[pytest_deco],
                 )
             )
-        ] + helpers.flatten(dependency_fixtures)
+        ] + flatten(dependency_fixtures)
