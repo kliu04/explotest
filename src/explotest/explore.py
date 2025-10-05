@@ -47,7 +47,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             # fill in default arguments, if needed
             bound_args.apply_defaults()
 
-            parsed_mode: Mode = Mode.from_string(mode)
+            parsed_mode = Mode.from_string(mode)
 
             if not parsed_mode:
                 raise KeyError("[ERROR]: Please enter a valid mode ('p' or 'a').")
@@ -73,15 +73,14 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                 "w",
             ) as f:
                 os.environ["RUNNING_GENERATED_TEST"] = "true"
-                tr = TestRunner(
-                    test,
-                    str(_func.__name__),
-                    str(fut_path),
-                    str(fut_path.parent),
-                )
-                er = tr.run_test()
-                # print(er)
                 if test:
+                    tr = TestRunner(
+                        test,
+                        str(_func.__name__),
+                        str(fut_path),
+                        str(fut_path.parent),
+                    )
+                    tr.run_test()
                     f.write(ast.unparse(test.make_test()))
                 del os.environ["RUNNING_GENERATED_TEST"]
             return res
