@@ -13,7 +13,9 @@ def ast_equal(a: ast.AST, b: ast.AST) -> bool:
 def test_meta_test_1():
     mf_body = ast.parse("x = 1")
     mf_ret = ast.parse("return x")
-    fixture_x = MetaFixture([], "x", cast(list[ast.stmt], [mf_body]), cast(ast.Return, mf_ret))
+    fixture_x = MetaFixture(
+        [], "x", cast(list[ast.stmt], [mf_body]), cast(ast.Return, mf_ret)
+    )
 
     mf_body = [ast.parse("y = 42", mode="exec").body[0]]
     mf_ret = ast.Return(value=ast.Name(id="y", ctx=ast.Load()))
@@ -24,12 +26,9 @@ def test_meta_test_1():
         targets=[ast.Name(id="return_value", ctx=ast.Store())],
         value=ast.Call(
             func=ast.Name(id="foo", ctx=ast.Load()),
-            args=[
-                ast.Name(id="x", ctx=ast.Load()),
-                ast.Name(id="y", ctx=ast.Load())
-            ],
-            keywords=[]
-        )
+            args=[ast.Name(id="x", ctx=ast.Load()), ast.Name(id="y", ctx=ast.Load())],
+            keywords=[],
+        ),
     )
 
     # assert return_value == 1
@@ -37,9 +36,9 @@ def test_meta_test_1():
         test=ast.Compare(
             left=ast.Name(id="return_value", ctx=ast.Load()),
             ops=[ast.Eq()],
-            comparators=[ast.Constant(value=1)]
+            comparators=[ast.Constant(value=1)],
         ),
-        msg=None
+        msg=None,
     )
 
     mt = MetaTest()
