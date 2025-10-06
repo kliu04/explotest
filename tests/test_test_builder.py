@@ -10,13 +10,13 @@ def test_test_builder_1(tmp_path):
     sig = inspect.signature(example_func)
 
     bound_args = sig.bind(10, 20, 30, 40, 50, x=100, y=200)
-    tb = TestBuilder("fut", tmp_path, bound_args, ArgumentReconstructor)
-    
-    assert (built := tb.build_test())
-    
-    assert built.fut_name == "fut"
-    assert built.fut_parameters == ['a', 'b', 'c', 'args', 'kwargs']
-    
-    assert len(built.direct_fixtures) == 5
-    
-    
+    tb = TestBuilder(tmp_path, "fut", dict(bound_args.arguments))
+
+    tb.build_imports(None).build_fixtures(ArgumentReconstructor(tmp_path))
+
+    assert tb.fut_name == "fut"
+    assert tb.parameters == ["a", "b", "c", "args", "kwargs"]
+
+    mt = tb.get_meta_test()
+
+    assert len(mt.direct_fixtures) == 5
