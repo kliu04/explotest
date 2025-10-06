@@ -200,7 +200,7 @@ class ArgumentReconstructor(AbstractReconstructor):
                     attr="__new__",
                     ctx=ast.Load(),
                 ),
-                args=[],
+                args=[qualified_class],
             ),
         )
         _clone = ast.fix_missing_locations(_clone)
