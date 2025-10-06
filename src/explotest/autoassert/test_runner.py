@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,8 +15,11 @@ def run_fut_twice(func, args, kwargs) -> ExecutionResult | None:
     :return: tuple of the first and second return values
     """
     try:
+        os.environ["RUNNING_GENERATED_TEST"] = "true"
         ret1 = func(*args, **kwargs)
         ret2 = func(*args, **kwargs)
         return ExecutionResult(ret1, ret2)
-    except Exception:
+    except Exception as e:
         return None
+    finally:
+        del os.environ["RUNNING_GENERATED_TEST"]

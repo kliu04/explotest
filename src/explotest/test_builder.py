@@ -28,7 +28,13 @@ class TestBuilder:
 
         # dynamically handle import depending on if running as a package or script
         if package_name is None or package_name == "":
-            imports.append(ast.Import(names=[ast.alias(name=self.fut_path.stem)]))
+            imports.append(
+                ast.ImportFrom(
+                    module=".",
+                    names=[ast.alias(name=self.fut_path.stem)],
+                    level=0,
+                )
+            )
         else:
             imports.append(
                 ast.ImportFrom(
@@ -42,7 +48,6 @@ class TestBuilder:
         return self
 
     def build_fixtures(self, reconstructor: AbstractReconstructor) -> Self:
-
         fixtures = []
         for parameter, argument in zip(self.parameters, self.arguments):
             new_fixtures = reconstructor.make_fixture(parameter, argument)
