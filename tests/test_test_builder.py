@@ -7,6 +7,7 @@ from explotest.test_builder import TestBuilder
 def test_test_builder_1(tmp_path):
     def example_func(a, b, c=3, *args, **kwargs):
         pass
+
     sig = inspect.signature(example_func)
 
     bound_args = sig.bind(10, 20, 30, 40, 50, x=100, y=200)
