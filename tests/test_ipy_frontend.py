@@ -106,7 +106,9 @@ def test_import_analysis(tg: FrontEnd):
         unparse(ast.Import(names=[ast.alias(name="numpy", asname="np")])),
         unparse(
             ast.ImportFrom(
-                module="math", names=[ast.alias(name="sin"), ast.alias(name="pi")]
+                module="math",
+                names=[ast.alias(name="sin"), ast.alias(name="pi")],
+                level=0,
             )
         ),
     }

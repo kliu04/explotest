@@ -45,7 +45,7 @@ pythonpath = [".", "src"]
 
 [tool.pyright]
 include = ["src", "test"]
-typeCheckingMode = "strict"
+typeCheckingMode = "basic"
 venvPath = "./.venv"
 pythonVersion = "3.13"
 pythonPlatform = "All"

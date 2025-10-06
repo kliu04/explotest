@@ -8,12 +8,10 @@ from enum import Enum
 from typing import Any
 
 import dill
-from explotest.argument_reconstructor import (
-    ArgumentReconstructor,
-)
 
-from explotest.autoassert.runner_of_test import ExecutionResult
+from explotest.autoassert.test_runner import ExecutionResult
 from explotest.meta_fixture import MetaFixture
+from explotest.reconstructors.argument_reconstructor import ArgumentReconstructor
 
 
 class AssertionToGenerate(Enum):
@@ -36,10 +34,8 @@ def determine_assertion(er: ExecutionResult) -> AssertionToGenerate:
     """ """
 
     if er.result_from_run_one == er.result_from_run_two:
-        if ArgumentReconstructor.is_reconstructible(
-            er.result_from_run_one
-        ):
-            return AssertionToGenerate.TOTAL_EQUALITY_ARR
+        if ArgumentReconstructor.is_reconstructible(er.result_from_run_one):
+            return AssertionToGenerate.TOTAL_EQUALITY_REPR
         else:
             try:
                 dill.dumps(er.result_from_run_one)  # try to serialize...
@@ -61,7 +57,7 @@ def determine_assertion(er: ExecutionResult) -> AssertionToGenerate:
                 return AssertionToGenerate.NONE  # :(
         else:
             # if they're the same type, let's see if it has a __len__ quality
-            if getattr(er.result_from_run_one, "__len__"):
+            if getattr(er.result_from_run_one, "__len__", False):
                 if len(er.result_from_run_one) == len(
                     er.result_from_run_two
                 ):  # if the lengths are equal, let's use length
@@ -116,9 +112,7 @@ def generate_assertion(
                                 args=[ast.Name(id="return_value", ctx=ast.Load())],
                             ),
                             ops=[ast.Eq()],
-                            comparators=[
-                                ast.Constant(value=len(value))
-                            ],
+                            comparators=[ast.Constant(value=len(value))],
                         )
                     )
                 ],
