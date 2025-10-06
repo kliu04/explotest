@@ -19,21 +19,6 @@ class LazyProxy:
         return getattr(self._real, name)
 
 
-def get_next_attrs(o: Any) -> list[Any]:
-    """
-    Returns all the data-only attributes of the current node.
-    """
-    # need to use the type of the current object to avoid triggering properties
-    cls = o.__class__
-    return [
-        n
-        for n, v in inspect.getmembers(cls)
-        if not inspect.isroutine(v)
-        and not n.startswith("__")
-        and not isinstance(v, property)
-    ]
-
-
 class ArgumentReconstructor(AbstractReconstructor):
 
     @override
@@ -119,7 +104,7 @@ class ArgumentReconstructor(AbstractReconstructor):
                 ast.Assign(
                     targets=[ast.Name(id=f"clone_{parameter}", ctx=ast.Store())],
                     value=ast.Dict(
-                        keys=cast(list[Optional[ast.expr]], list(d.keys())),
+                        keys=list(d.keys()),
                         values=list(d.values()),  # type: ignore
                     ),
                 ),
@@ -175,8 +160,17 @@ class ArgumentReconstructor(AbstractReconstructor):
             "__weakref__",
         ]
 
-        cls = obj.__class__
-        attributes = get_next_attrs(cls)
+        attributes = inspect.getmembers(obj, predicate=lambda x: not callable(x))
+        attributes = list(filter(lambda x: x[0] not in builtins, attributes))
+        # filter out properties
+        # type(obj) is the class obj is defined from
+        # x[0] is the name of the variable
+        attributes = list(
+            filter(
+                lambda x: not isinstance(getattr(type(obj), x[0], None), property),
+                attributes,
+            )
+        )
 
         ptf_body: list[ast.AST] = []
         deps: list[MetaFixture] = []
@@ -274,9 +268,19 @@ class ArgumentReconstructor(AbstractReconstructor):
                 "ismethodwrapper": inspect.ismethodwrapper(o),
                 "isgetsetdescriptor": inspect.isgetsetdescriptor(o),
                 "ismemberdescriptor": inspect.ismemberdescriptor(o),
-                # "isproperty": isinstance(o, property)
             }
             return any(results.values())
+
+        def get_next_attrs(o: Any) -> list[Any]:
+            """
+            Returns all the data-only attributes of the current node.
+            """
+            cls = o.__class__
+            return [
+                v
+                for n, v in inspect.getmembers(cls)
+                if not inspect.isroutine(v) and not n.startswith("__") and not isinstance(v, property)
+            ]
 
         def in_that_uses_is(o: Any, lst: list[Any]):
             """
