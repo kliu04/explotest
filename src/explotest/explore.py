@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Any, Callable
 from typing import Literal
 
-from .autoassert.runner_of_test import TestRunner
+from .autoassert import test_runner
+from .autoassert.autoassert import determine_assertion, generate_assertion
 from .helpers import Mode, sanitize_name, is_running_under_test
 from .reconstructors.argument_reconstructor import ArgumentReconstructor
 from .reconstructors.pickle_reconstructor import PickleReconstructor
@@ -73,7 +74,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             )
 
             test_builder.build_mocks({})
-            test = test_builder.build_test()
+            meta_test = test_builder.build_test()
 
             # write test to a file
             with open(
@@ -81,15 +82,16 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                 "w",
             ) as f:
                 os.environ["RUNNING_GENERATED_TEST"] = "true"
-                if test:
-                    tr = TestRunner(
-                        test,
-                        str(_func.__name__),
-                        str(fut_path),
-                        str(fut_path.parent),
-                    )
-                    tr.run_test()
-                    f.write(ast.unparse(test.make_test()))
+                if meta_test:
+                    execution_result = test_runner.run_fut_twice(_func, args, kwargs)
+                    if execution_result:
+                        x = generate_assertion(
+                            res, determine_assertion(execution_result)
+                        )
+                        meta_test.direct_fixtures.extend(x.fixtures)
+                        meta_test.asserts.extend(x.assertions)
+                        print(x)
+                    f.write(ast.unparse(meta_test.make_test()))
                 del os.environ["RUNNING_GENERATED_TEST"]
             return res
 
