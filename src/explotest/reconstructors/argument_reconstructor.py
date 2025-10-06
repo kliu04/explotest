@@ -18,6 +18,32 @@ class LazyProxy:
     def __getattr__(self, name):
         return getattr(self._real, name)
 
+def get_next_attrs(o: Any) -> list[Any]:
+    """
+    Returns all the data-only attributes of the current node.
+    """
+    builtins = [
+        "__dict__",
+        "__doc__",
+        "__firstlineno__",
+        "__module__",
+        "__static_attributes__",
+        "__weakref__",
+    ]
+
+    attributes = inspect.getmembers(o, predicate=lambda x: not callable(x))
+    attributes = list(filter(lambda x: x[0] not in builtins, attributes))
+    # filter out properties
+    # type(obj) is the class obj is defined from
+    # x[0] is the name of the variable
+    attributes = list(
+        filter(
+            lambda x: not isinstance(getattr(type(o), x[0], None), property),
+            attributes,
+        )
+    )
+    return attributes
+
 
 class ArgumentReconstructor(AbstractReconstructor):
 
@@ -160,17 +186,7 @@ class ArgumentReconstructor(AbstractReconstructor):
             "__weakref__",
         ]
 
-        attributes = inspect.getmembers(obj, predicate=lambda x: not callable(x))
-        attributes = list(filter(lambda x: x[0] not in builtins, attributes))
-        # filter out properties
-        # type(obj) is the class obj is defined from
-        # x[0] is the name of the variable
-        attributes = list(
-            filter(
-                lambda x: not isinstance(getattr(type(obj), x[0], None), property),
-                attributes,
-            )
-        )
+        attributes = get_next_attrs(obj)
 
         ptf_body: list[ast.AST] = []
         deps: list[MetaFixture] = []
@@ -271,16 +287,6 @@ class ArgumentReconstructor(AbstractReconstructor):
             }
             return any(results.values())
 
-        def get_next_attrs(o: Any) -> list[Any]:
-            """
-            Returns all the data-only attributes of the current node.
-            """
-            cls = o.__class__
-            return [
-                v
-                for n, v in inspect.getmembers(cls)
-                if not inspect.isroutine(v) and not n.startswith("__") and not isinstance(v, property)
-            ]
 
         def in_that_uses_is(o: Any, lst: list[Any]):
             """
@@ -301,7 +307,7 @@ class ArgumentReconstructor(AbstractReconstructor):
             current_obj = q.popleft()
             visited.append(current_obj)
             # no need to explore current node as we have already explored it with is_bad
-            for next_attr in get_next_attrs(current_obj):
+            for next_attr in [kv[1] for kv in get_next_attrs(current_obj)]:
                 # fixes infinite cycling due to int pooling w/ check to is_primitive
                 # https://stackoverflow.com/questions/6101379/what-happens-behind-the-scenes-when-python-adds-small-ints
                 # primitives are trivially reconstructible
