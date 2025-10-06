@@ -1,35 +1,25 @@
 import ast
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional, Any, Self
 
+from .autoassert.autoassert import AssertionResult
 from .meta_test import MetaTest
 from .reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
 class TestBuilder:
 
-    def __init__(
-        self,
-        fut_name: str,
-        fut_path: Path,
-        bound_args: dict[str, Any],
-        reconstructor: type[AbstractReconstructor],
-        package_name: Optional[str],
-    ):
-        self.mock = None
-        self.fut_name = fut_name
+    def __init__(self, fut_path: Path, fut_name: str, bound_args: dict[str, Any]):
+        self.result = MetaTest()
         self.fut_path = fut_path
-        self.bound_args = bound_args
-        self.reconstructor = reconstructor
-        self.reconstructor = self.reconstructor(self.fut_path)
-        self.package_name = package_name
+        self.fut_name = fut_name
+        self.parameters = list(bound_args.keys())
+        self.arguments = list(bound_args.values())
 
-    def build_test(self) -> Optional[MetaTest]:
-        """
-        Creates a unit test for the function-under-test.
-        :return: a MetaTest if ExploTest can create a meta unit test, and None if it cannot.
-        """
+        self.result.fut_name = self.fut_name
+        self.result.fut_parameters = self.parameters
 
+    def build_imports(self, package_name: Optional[str]) -> Self:
         imports: list[ast.Import | ast.ImportFrom] = [
             ast.Import(names=[ast.alias(name="os")]),
             ast.Import(names=[ast.alias(name="dill")]),
@@ -37,49 +27,63 @@ class TestBuilder:
         ]
 
         # dynamically handle import depending on if running as a package or script
-        if self.package_name is None or self.package_name == "":
+        if package_name is None or package_name == "":
             imports.append(ast.Import(names=[ast.alias(name=self.fut_path.stem)]))
         else:
             imports.append(
                 ast.ImportFrom(
-                    module=self.package_name,
+                    module=package_name,
                     names=[ast.alias(name=self.fut_path.stem)],
                     level=0,
                 )
             )
 
-        parameters = list(self.bound_args.keys())
-        arguments = list(self.bound_args.values())
+        self.result.imports = imports
+        return self
+
+    def build_fixtures(self, reconstructor: AbstractReconstructor) -> Self:
 
         fixtures = []
-        for parameter, argument in zip(parameters, arguments):
-            new_fixtures = self.reconstructor.make_fixture(parameter, argument)
+        for parameter, argument in zip(self.parameters, self.arguments):
+            new_fixtures = reconstructor.make_fixture(parameter, argument)
             if new_fixtures is None:
-                return None
+                raise ValueError(
+                    f"ExploTest failed to generate fixture for {parameter}."
+                )
             fixtures.append(new_fixtures)
+        self.result.direct_fixtures = fixtures
+        return self
 
+    def build_assertions(self, assertion_result: AssertionResult) -> Self:
+        self.result.direct_fixtures.extend(assertion_result.fixtures)
+        self.result.asserts = assertion_result.assertions
+        return self
+
+    def build_act_phase(self) -> Self:
         filename = self.fut_path.stem
-        return_ast = ast.Assign(
+        call_ast = ast.Assign(
             targets=[ast.Name(id="return_value", ctx=ast.Store())],
             value=ast.Call(
                 func=ast.Name(
                     id=f"{filename}.{self.fut_name}",
                     ctx=ast.Load(),
                 ),
-                args=[ast.Name(id=param, ctx=ast.Load()) for param in parameters],
+                args=[ast.Name(id=param, ctx=ast.Load()) for param in self.parameters],
             ),
         )
-        return_ast = ast.fix_missing_locations(return_ast)
+        call_ast = ast.fix_missing_locations(call_ast)
+        self.result.act_phase = call_ast
+        return self
 
-        return MetaTest(
-            self.fut_name, parameters, imports, fixtures, return_ast, [], self.mock
-        )
-
-    def build_mocks(self, d: dict[str, Any]):
-        d = {k: self.reconstructor.make_fixture(k, v) for k, v in d.items()}
+    def build_mocks(
+        self, to_mock: dict[str, Any], reconstructor: AbstractReconstructor
+    ) -> Self:
+        # TODO: think about making reconstructor a parameter or take default ones
         """
         Given a dictionary of variables to mock and mock values, generate mock fixtures.
         """
+        d = {k: reconstructor.make_fixture(k, v) for k, v in to_mock.items()}
+
         defn = ast.FunctionDef(
             name="mock_setup",
             args=ast.arguments(
@@ -131,7 +135,8 @@ class TestBuilder:
             ],
         )
 
-        self.mock = ast.fix_missing_locations(defn)
+        self.result.mock = ast.fix_missing_locations(defn)
+        return self
 
-    def create_asserts(self):
-        raise NotImplementedError("Oop")
+    def get_meta_test(self) -> MetaTest:
+        return self.result
