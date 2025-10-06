@@ -23,6 +23,8 @@ def get_next_attrs(o: Any) -> list[Any]:
     """
     Returns all the data-only attributes of the current node.
     """
+
+    # taken from inspect.getmembers(Foo()) on empty class Foo
     builtins = [
         "__dict__",
         "__doc__",
@@ -176,16 +178,6 @@ class ArgumentReconstructor(AbstractReconstructor):
         self, parameter: str, obj: Any, seen_args
     ) -> Optional[MetaFixture]:
         """Return an MetaFixture representation of a clone of obj by setting attributes equal to obj."""
-
-        # taken from inspect.getmembers(Foo()) on empty class Foo
-        builtins = [
-            "__dict__",
-            "__doc__",
-            "__firstlineno__",
-            "__module__",
-            "__static_attributes__",
-            "__weakref__",
-        ]
 
         attributes = get_next_attrs(obj)
 

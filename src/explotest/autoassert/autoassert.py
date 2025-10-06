@@ -47,7 +47,7 @@ def determine_assertion(er: ExecutionResult) -> AssertionToGenerate:
     else:
         # okay, they aren't equal by any notion
         # are they at least the same type?
-        if type(er.result_from_run_one) != type(er.result_from_run_two):
+        if type(er.result_from_run_one) is not type(er.result_from_run_two):
             # if they're both null, at least we can check for non-existence
             if er.result_from_run_one is None and er.result_from_run_two is None:
                 return AssertionToGenerate.NON_EXISTENCE
