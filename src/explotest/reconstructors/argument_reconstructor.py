@@ -18,6 +18,7 @@ class LazyProxy:
     def __getattr__(self, name):
         return getattr(self._real, name)
 
+
 def get_next_attrs(o: Any) -> list[Any]:
     """
     Returns all the data-only attributes of the current node.
@@ -286,7 +287,6 @@ class ArgumentReconstructor(AbstractReconstructor):
                 "ismemberdescriptor": inspect.ismemberdescriptor(o),
             }
             return any(results.values())
-
 
         def in_that_uses_is(o: Any, lst: list[Any]):
             """
