@@ -8,10 +8,7 @@ from .reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
 def is_inside_package(path: Path) -> bool:
-    for parent in path.parents:
-        if (parent / "__init__.py").exists():
-            return True
-    return False
+    return (path.parent / "__init__.py").exists()
 
 
 class TestBuilder:
