@@ -12,11 +12,11 @@ class MetaTest:
     fut_name: str  # function-under-test name
     fut_parameters: list[str]  # all parameters needed for the function-under-test
     imports: list[ast.Import | ast.ImportFrom]  # needed imports for the test file
-    direct_fixtures: list[
-        MetaFixture
-    ]  # argument generators for the function-under-test
+    direct_fixtures: list[MetaFixture] = (
+        []
+    )  # argument generators for the function-under-test
     act_phase: ast.Assign  # calling the function-under-test
-    asserts: list[ast.Assert]  # unit test assertions
+    asserts: list[ast.Assert] = []  # unit test assertions
     mock: ast.FunctionDef | None = None
     # definitions: list[ast.AST]  # for REPL (Kevin: not sure what this does)
 

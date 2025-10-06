@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 from collections.abc import Iterable
 from enum import Enum
@@ -78,4 +79,6 @@ def is_collection(x: Any) -> bool:
 
 def is_running_under_test():
     """Returns True iff the program-under-test is a test program."""
-    return os.getenv("RUNNING_GENERATED_TEST") == "true"
+    # the pytest in sys.modules part is needed if the file containing the FUT has some code not wrapped in an
+    # if __name__ == "__main__" block as it will be executed
+    return os.getenv("RUNNING_GENERATED_TEST") == "true" or "pytest" in sys.modules

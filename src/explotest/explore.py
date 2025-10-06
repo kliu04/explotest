@@ -14,7 +14,7 @@ from .reconstructors.pickle_reconstructor import PickleReconstructor
 from .test_builder import TestBuilder
 
 
-def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
+def explore(func: Callable | None = None, *, mode: Literal["p", "a"] = "p"):
     """Add the @explore annotation to a function to recreate its arguments at runtime."""
 
     def _explore(_func):
@@ -27,10 +27,13 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             # if file is a test file, do nothing
             # (needed to avoid explotest generated code running on itself)
             if is_running_under_test():
-                return _func
+                return _func(*args, **kwargs)
 
             nonlocal counter
             counter += 1
+
+            # fix depth at current recursion depth (otherwise all counters will be at the last one)
+            depth = counter
 
             fut_name = _func.__qualname__
             source = inspect.getsourcefile(_func)
@@ -57,9 +60,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
                 case Mode.PICKLE:
                     reconstructor = PickleReconstructor(fut_path)
                 case Mode.ARR:
-                    reconstructor = ArgumentReconstructor(
-                        fut_path, PickleReconstructor(fut_path)
-                    )
+                    reconstructor = ArgumentReconstructor(fut_path, PickleReconstructor)
                 case _:
                     assert False
 
@@ -89,7 +90,7 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
             # write test to a file
             if meta_test:
                 with open(
-                    f"{fut_path.parent}/test_{sanitize_name(fut_name)}_{counter}.py",
+                    f"{fut_path.parent}/test_{sanitize_name(fut_name)}_{depth}.py",
                     "w",
                 ) as f:
                     f.write(ast.unparse(meta_test.make_test()))
