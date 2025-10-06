@@ -28,13 +28,14 @@ class TestBuilder:
 
         # dynamically handle import depending on if running as a package or script
         if package_name is None or package_name == "":
-            imports.append(
-                ast.ImportFrom(
-                    module=".",
-                    names=[ast.alias(name=self.fut_path.stem)],
-                    level=0,
-                )
-            )
+            # imports.append(
+            #     ast.ImportFrom(
+            #         module=".",
+            #         names=[ast.alias(name=self.fut_path.stem)],
+            #         level=0,
+            #     )
+            # )
+            imports.append(ast.Import(names=[ast.alias(name=self.fut_path.stem)]))
         else:
             imports.append(
                 ast.ImportFrom(

@@ -9,4 +9,4 @@ def foo():
     return False
 
 
-foo()
+foo()  # pyright: ignore [reportCallIssue]
