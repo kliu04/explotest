@@ -19,7 +19,7 @@ def run_fut_twice(func, args, kwargs) -> ExecutionResult | None:
         ret1 = func(*args, **kwargs)
         ret2 = func(*args, **kwargs)
         return ExecutionResult(ret1, ret2)
-    except Exception as e:
+    except Exception:
         return None
     finally:
         del os.environ["RUNNING_GENERATED_TEST"]
