@@ -7,6 +7,10 @@ from .meta_test import MetaTest
 from .reconstructors.abstract_reconstructor import AbstractReconstructor
 
 
+def is_inside_package(path: Path) -> bool:
+    return (path.parent / "__init__.py").exists()
+
+
 class TestBuilder:
 
     def __init__(self, fut_path: Path, fut_name: str, bound_args: dict[str, Any]):
@@ -26,17 +30,9 @@ class TestBuilder:
             ast.Import(names=[ast.alias(name="pytest")]),
         ]
 
-        # dynamically handle import depending on if running as a package or script
-        if package_name is None or package_name == "":
-            # imports.append(
-            #     ast.ImportFrom(
-            #         module=".",
-            #         names=[ast.alias(name=self.fut_path.stem)],
-            #         level=0,
-            #     )
-            # )
-            imports.append(ast.Import(names=[ast.alias(name=self.fut_path.stem)]))
-        else:
+        # dynamically handle import depending on if inside as a package or running as script
+        if package_name is not None and package_name != "":
+            # running as module
             imports.append(
                 ast.ImportFrom(
                     module=package_name,
@@ -44,6 +40,18 @@ class TestBuilder:
                     level=0,
                 )
             )
+        elif is_inside_package(self.fut_path):
+            # running as script inside a package
+            imports.append(
+                ast.ImportFrom(
+                    module=".",
+                    names=[ast.alias(name=self.fut_path.stem)],
+                    level=0,
+                )
+            )
+        else:
+            # running as script
+            imports.append(ast.Import(names=[ast.alias(name=self.fut_path.stem)]))
 
         self.result.imports = imports
         return self
