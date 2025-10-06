@@ -1,7 +1,6 @@
 import ast
 import functools
 import inspect
-import os
 import sys
 from pathlib import Path
 from typing import Any, Callable
@@ -56,9 +55,11 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
 
             match parsed_mode:
                 case Mode.PICKLE:
-                    reconstructor = PickleReconstructor
+                    reconstructor = PickleReconstructor(fut_path)
                 case Mode.ARR:
-                    reconstructor = ArgumentReconstructor
+                    reconstructor = ArgumentReconstructor(
+                        fut_path, PickleReconstructor(fut_path)
+                    )
                 case _:
                     assert False
 
@@ -66,33 +67,36 @@ def explore(func: Callable = None, *, mode: Literal["p", "a"] = "p"):
 
             bound_args = {**dict(bound_args.arguments)}
             test_builder = TestBuilder(
-                fut_name,
                 fut_path,
+                fut_name,
                 bound_args,
-                reconstructor,
-                getattr(sys.modules[_func.__module__], "__package__", None),
             )
 
-            test_builder.build_mocks({})
-            meta_test = test_builder.build_test()
+            test_builder.build_imports(
+                getattr(sys.modules[_func.__module__], "__package__", None)
+            ).build_fixtures(reconstructor).build_act_phase()
+            test_builder.build_mocks({}, reconstructor)
+
+            execution_result = test_runner.run_fut_twice(_func, args, kwargs)
+            if execution_result:
+                assertion_result = generate_assertion(
+                    res, determine_assertion(execution_result)
+                )
+                test_builder.build_assertions(assertion_result)
+
+            meta_test = test_builder.get_meta_test()
 
             # write test to a file
-            with open(
-                f"{fut_path.parent}/test_{sanitize_name(fut_name)}_{counter}.py",
-                "w",
-            ) as f:
-                os.environ["RUNNING_GENERATED_TEST"] = "true"
-                if meta_test:
-                    execution_result = test_runner.run_fut_twice(_func, args, kwargs)
-                    if execution_result:
-                        x = generate_assertion(
-                            res, determine_assertion(execution_result)
-                        )
-                        meta_test.direct_fixtures.extend(x.fixtures)
-                        meta_test.asserts.extend(x.assertions)
-                        print(x)
+            if meta_test:
+                with open(
+                    f"{fut_path.parent}/test_{sanitize_name(fut_name)}_{counter}.py",
+                    "w",
+                ) as f:
                     f.write(ast.unparse(meta_test.make_test()))
-                del os.environ["RUNNING_GENERATED_TEST"]
+            else:
+                print(
+                    f"ExploTest failed creating a unit test for the function {fut_name}."
+                )
             return res
 
         return wrapper

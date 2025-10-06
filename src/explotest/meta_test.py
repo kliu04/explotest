@@ -1,11 +1,9 @@
 import ast
-from dataclasses import dataclass
 
 from .helpers import sanitize_name
 from .meta_fixture import MetaFixture
 
 
-@dataclass(frozen=True)
 class MetaTest:
     """
     Abstract representation of a PyTest unit test for a function.
@@ -19,7 +17,7 @@ class MetaTest:
     ]  # argument generators for the function-under-test
     act_phase: ast.Assign  # calling the function-under-test
     asserts: list[ast.Assert]  # unit test assertions
-    mock: ast.FunctionDef | None
+    mock: ast.FunctionDef | None = None
     # definitions: list[ast.AST]  # for REPL (Kevin: not sure what this does)
 
     def make_test(self) -> ast.Module:
