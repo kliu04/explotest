@@ -8,7 +8,11 @@ from ..meta_fixture import MetaFixture
 
 
 class AbstractReconstructor(ABC):
-    def __init__(self, file_path: Path, backup_reconstructor: type["AbstractReconstructor"] | None = None):
+    def __init__(
+        self,
+        file_path: Path,
+        backup_reconstructor: type["AbstractReconstructor"] | None = None,
+    ):
         self.file_path = file_path  # where to place any files, if needed
         os.makedirs(f"{self.file_path.parent}/pickled", exist_ok=True)
         self.backup_reconstructor = (
