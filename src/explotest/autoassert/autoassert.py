@@ -41,7 +41,7 @@ def determine_assertion(er: ExecutionResult) -> AssertionToGenerate:
                 dill.dumps(er.result_from_run_one)  # try to serialize...
                 # success if we reach this block
                 return AssertionToGenerate.TOTAL_EQUALITY_PICKLE
-            except Exception as _:
+            except Exception:
                 # not pickleable, not ARR-able, try to use __repr__
                 return AssertionToGenerate.TOTAL_EQUALITY_REPR
     else:

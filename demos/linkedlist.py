@@ -1,4 +1,4 @@
-from explotest import explore, Mode
+from explotest import explore
 
 
 f = open("file.txt")
@@ -6,7 +6,7 @@ f = open("file.txt")
 list_of_obj = ["a"]
 
 
-@explore(mode=Mode.PICKLE)
+@explore(mode="p")
 def foo(x):
     list_of_obj[0]
     print(x)
