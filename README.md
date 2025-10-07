@@ -15,6 +15,13 @@ pip install ExploTest
 python3 -m pip install -e <path/to/explotest>
 ```
 
+## Usage
+On any function or method (except for closures), add the `@explore` decorator. 
+
+We accept two optional settings, `mode` and `mark_mode`:
+- `mode` can be either `"p"` or `"a"` (default is `"p"`) to change the reconstruction mode.
+- `mark_mode` can be either `False` or `True` (default is `False`); if set to `True` tests are only generated if execution reaches a `explotest_mark()` function.
+
 ## Development Setup
 
 Create a venv, then install `pip-tools`. Run `pip-compile` as specified.
