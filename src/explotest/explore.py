@@ -43,11 +43,6 @@ def explore(
             if is_running_under_test():
                 return _func(*args, **kwargs)
 
-            res: Any = _func(*args, **kwargs)
-
-            if mark_mode and not mark:
-                return res
-
             nonlocal counter
             counter += 1
 
@@ -94,6 +89,13 @@ def explore(
                 getattr(sys.modules[_func.__module__], "__package__", None)
             ).build_fixtures(reconstructor).build_act_phase()
             test_builder.build_mocks({}, reconstructor)
+            
+            # this has to be below where we save the arguments to avoid mutation affecting the saved
+            # arguments
+            res: Any = _func(*args, **kwargs)
+
+            if mark_mode and not mark:
+                return res
 
             execution_result = test_runner.run_fut_twice(_func, args, kwargs)
             if execution_result:
