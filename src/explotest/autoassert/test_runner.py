@@ -22,4 +22,4 @@ def run_fut_twice(func, args, kwargs) -> ExecutionResult | None:
     except Exception:
         return None
     finally:
-        del os.environ["RUNNING_GENERATED_TEST"]
+        os.environ.pop("RUNNING_GENERATED_TEST", None)

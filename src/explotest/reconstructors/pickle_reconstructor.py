@@ -11,6 +11,8 @@ from ..reconstructors.abstract_reconstructor import AbstractReconstructor
 class PickleReconstructor(AbstractReconstructor):
     @override
     def make_fixture(self, parameter, argument):
+        dill.settings["recurse"] = True
+
         if is_primitive(argument):
             return super()._make_primitive_fixture(parameter, argument)
 

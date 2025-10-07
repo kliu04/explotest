@@ -43,24 +43,3 @@ class Reconstructor(abc.ABC):
 
     @abstractmethod
     def _ast(self, parameter: str, argument: Any) -> MetaFixture: ...
-
-    # @staticmethod
-    # def _make_primitive_fixture(parameter: str, argument: Any) -> MetaFixture:
-    #     """Helper to reconstruct primitives, since behaviour should be the same across all reconstruction modes."""
-    #     generated_ast = cast(
-    #         ast.AST,
-    #         # assign each primitive its argument as a constant
-    #         ast.Assign(
-    #             targets=[ast.Name(id=parameter, ctx=ast.Store())],
-    #             value=ast.Constant(value=argument),
-    #         ),
-    #     )
-    #     # add lineno and col_offset attributes
-    #     generated_ast = ast.fix_missing_locations(generated_ast)
-    #
-    #     # add
-    #     ret = ast.fix_missing_locations(
-    #         ast.Return(value=ast.Name(id=parameter, ctx=ast.Load()))
-    #     )
-    #
-    #     return MetaFixture([], parameter, [generated_ast], ret)
