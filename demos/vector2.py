@@ -1,4 +1,4 @@
-import explotest
+from explotest import explore
 
 
 class Vector2:
@@ -9,7 +9,7 @@ class Vector2:
         self.y = y
         Vector2.instances += 1
 
-    @explotest.explore(mode="p")
+    @explore(mode="p")
     def __add__(self, other: "Vector2"):
         return Vector2(self.x + other.x, self.y + other.y)
 
@@ -37,4 +37,4 @@ class Vector2:
 v1 = Vector2.zero()
 v2 = Vector2(2.7, 3.14)
 
-v1 + v2
+print(v1 + v2)

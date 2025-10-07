@@ -13,8 +13,20 @@ from .reconstructors.argument_reconstructor import ArgumentReconstructor
 from .reconstructors.pickle_reconstructor import PickleReconstructor
 from .test_builder import TestBuilder
 
+mark = False
 
-def explore(func: Callable | None = None, *, mode: Literal["p", "a"] = "p"):
+
+def explotest_mark():
+    global mark
+    mark = True
+
+
+def explore(
+    func: Callable | None = None,
+    *,
+    mode: Literal["p", "a"] = "p",
+    mark_mode: bool = False,
+) -> Callable:
     """Add the @explore annotation to a function to recreate its arguments at runtime."""
 
     def _explore(_func):
@@ -23,11 +35,18 @@ def explore(func: Callable | None = None, *, mode: Literal["p", "a"] = "p"):
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
         def wrapper(*args, **kwargs) -> Any:
+            global mark
+            mark = False
 
             # if file is a test file, do nothing
             # (needed to avoid explotest generated code running on itself)
             if is_running_under_test():
                 return _func(*args, **kwargs)
+
+            res: Any = _func(*args, **kwargs)
+
+            if mark_mode and not mark:
+                return res
 
             nonlocal counter
             counter += 1
@@ -63,8 +82,6 @@ def explore(func: Callable | None = None, *, mode: Literal["p", "a"] = "p"):
                     reconstructor = ArgumentReconstructor(fut_path, PickleReconstructor)
                 case _:
                     assert False
-
-            res: Any = _func(*args, **kwargs)
 
             bound_args = {**dict(bound_args.arguments)}
             test_builder = TestBuilder(

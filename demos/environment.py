@@ -9,13 +9,13 @@ def empty_env():
     return lambda x, fail: fail(x)
 
 
-# Env Symbol Number -> Env
+# Env String Number -> Env
 @explore(mode="p")
 def extend_env(env, x0: str, v: int):
     return lambda x, fail: v if x == x0 else env(x, fail)
 
 
-# Env Symbol -> Number
+# Env String -> Number
 @explore(mode="p")
 def lookup_env(env, x):
     def raise_unbound(var):
