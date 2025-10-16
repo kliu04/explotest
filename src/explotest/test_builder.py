@@ -75,6 +75,32 @@ class TestBuilder:
 
     def build_act_phase(self) -> Self:
         filename = self.fut_path.stem
+        
+        # Separate regular args from *args and **kwargs
+        regular_args = []
+        starargs = None
+        kwargs = None
+        
+        for param in self.parameters:
+            if param == "args":
+                starargs = ast.Starred(
+                    value=ast.Name(id=param, ctx=ast.Load()), ctx=ast.Load()
+                )
+            elif param == "kwargs":
+                kwargs = ast.Name(id=param, ctx=ast.Load())
+            else:
+                regular_args.append(ast.Name(id=param, ctx=ast.Load()))
+        
+        # Build args list with starred if needed
+        args_list = regular_args
+        if starargs:
+            args_list.append(starargs)
+        
+        # Build keywords list with double-star if needed
+        keywords_list = []
+        if kwargs:
+            keywords_list.append(ast.keyword(arg=None, value=kwargs))
+        
         call_ast = ast.Assign(
             targets=[ast.Name(id="return_value", ctx=ast.Store())],
             value=ast.Call(
@@ -82,7 +108,8 @@ class TestBuilder:
                     id=f"{filename}.{self.fut_name}",
                     ctx=ast.Load(),
                 ),
-                args=[ast.Name(id=param, ctx=ast.Load()) for param in self.parameters],
+                args=args_list,
+                keywords=keywords_list,
             ),
         )
         call_ast = ast.fix_missing_locations(call_ast)
