@@ -133,3 +133,45 @@ def test_test_builder_custom_varargs_names(tmp_path):
     assert "**options" in generated_code, "options should be unpacked with **"
     # Ensure they're not passed as regular parameters
     assert "items, options)" not in generated_code, "items and options should not be passed as regular parameters"
+
+
+def test_test_builder_keyword_only_params(tmp_path):
+    """Test that keyword-only parameters are passed as keyword arguments"""
+    def example_func(a, b, *args, c, d=10, **kwargs):
+        pass
+
+    sig = inspect.signature(example_func)
+    bound_args = sig.bind(1, 2, 3, 4, c=100, d=200, x=300, y=400)
+    
+    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments), sig)
+    tb.build_act_phase()
+    
+    act_phase = tb.get_meta_test().act_phase
+    generated_code = ast.unparse(act_phase)
+    
+    # Verify keyword-only parameters are passed as keyword arguments
+    assert "c=c" in generated_code, "c should be passed as keyword argument"
+    assert "d=d" in generated_code, "d should be passed as keyword argument"
+    # Verify they're not passed as positional arguments
+    assert generated_code.count("(a, b,") == 1, "a and b should be positional"
+
+
+def test_test_builder_keyword_only_without_varargs(tmp_path):
+    """Test keyword-only parameters without *args (using bare *)"""
+    def example_func(a, b, *, c, d=10):
+        pass
+
+    sig = inspect.signature(example_func)
+    bound_args = sig.bind(1, 2, c=100, d=200)
+    
+    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments), sig)
+    tb.build_act_phase()
+    
+    act_phase = tb.get_meta_test().act_phase
+    generated_code = ast.unparse(act_phase)
+    
+    # Verify keyword-only parameters are passed as keyword arguments
+    assert "c=c" in generated_code, "c should be passed as keyword argument"
+    assert "d=d" in generated_code, "d should be passed as keyword argument"
+    # Should have positional args followed by keyword args
+    assert "(a, b, c=c, d=d)" in generated_code or "(a, b, c=c, d=d)" in generated_code
