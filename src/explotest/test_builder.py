@@ -1,4 +1,5 @@
 import ast
+import inspect
 from pathlib import Path
 from typing import Optional, Any, Self
 
@@ -13,12 +14,19 @@ def is_inside_package(path: Path) -> bool:
 
 class TestBuilder:
 
-    def __init__(self, fut_path: Path, fut_name: str, bound_args: dict[str, Any]):
+    def __init__(
+        self,
+        fut_path: Path,
+        fut_name: str,
+        bound_args: dict[str, Any],
+        fut_signature: Optional[inspect.Signature] = None,
+    ):
         self.result = MetaTest()
         self.fut_path = fut_path
         self.fut_name = fut_name
         self.parameters = list(bound_args.keys())
         self.arguments = list(bound_args.values())
+        self.fut_signature = fut_signature
 
         self.result.fut_name = self.fut_name
         self.result.fut_parameters = self.parameters
@@ -76,17 +84,29 @@ class TestBuilder:
     def build_act_phase(self) -> Self:
         filename = self.fut_path.stem
         
+        # Determine which parameters are VAR_POSITIONAL (*args) and VAR_KEYWORD (**kwargs)
+        # by checking the function signature
+        var_positional_param = None
+        var_keyword_param = None
+        
+        if self.fut_signature is not None:
+            for param_name, param in self.fut_signature.parameters.items():
+                if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                    var_positional_param = param_name
+                elif param.kind == inspect.Parameter.VAR_KEYWORD:
+                    var_keyword_param = param_name
+        
         # Separate regular args from *args and **kwargs
         regular_args = []
         starargs = None
         kwargs = None
         
         for param in self.parameters:
-            if param == "args":
+            if param == var_positional_param:
                 starargs = ast.Starred(
                     value=ast.Name(id=param, ctx=ast.Load()), ctx=ast.Load()
                 )
-            elif param == "kwargs":
+            elif param == var_keyword_param:
                 kwargs = ast.Name(id=param, ctx=ast.Load())
             else:
                 regular_args.append(ast.Name(id=param, ctx=ast.Load()))

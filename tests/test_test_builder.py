@@ -12,7 +12,7 @@ def test_test_builder_1(tmp_path):
     sig = inspect.signature(example_func)
 
     bound_args = sig.bind(10, 20, 30, 40, 50, x=100, y=200)
-    tb = TestBuilder(tmp_path, "fut", dict(bound_args.arguments))
+    tb = TestBuilder(tmp_path, "fut", dict(bound_args.arguments), sig)
 
     tb.build_imports(None).build_fixtures(ArgumentReconstructor(tmp_path))
 
@@ -31,7 +31,7 @@ def test_test_builder_2(tmp_path):
     sig = inspect.signature(example_func)
 
     bound_args = sig.bind(10, 20)
-    tb = TestBuilder(tmp_path, "fut", dict(bound_args.arguments))
+    tb = TestBuilder(tmp_path, "fut", dict(bound_args.arguments), sig)
 
     tb.build_imports(None).build_fixtures(ArgumentReconstructor(tmp_path))
 
@@ -47,7 +47,7 @@ def test_test_builder_args_kwargs_unpacking(tmp_path):
     sig = inspect.signature(example_func)
     bound_args = sig.bind(10, 20, 30, 40, 50, x=100, y=200)
     
-    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments))
+    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments), sig)
     tb.build_act_phase()
     
     # Get the generated AST and unparse it
@@ -69,7 +69,7 @@ def test_test_builder_kwargs_only_unpacking(tmp_path):
     sig = inspect.signature(example_func)
     bound_args = sig.bind(10, 20, x=100, y=200)
     
-    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments))
+    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments), sig)
     tb.build_act_phase()
     
     act_phase = tb.get_meta_test().act_phase
@@ -87,7 +87,7 @@ def test_test_builder_args_only_unpacking(tmp_path):
     sig = inspect.signature(example_func)
     bound_args = sig.bind(10, 20, 30, 40)
     
-    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments))
+    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments), sig)
     tb.build_act_phase()
     
     act_phase = tb.get_meta_test().act_phase
@@ -105,10 +105,31 @@ def test_test_builder_no_unpacking(tmp_path):
     sig = inspect.signature(example_func)
     bound_args = sig.bind(10, 20, 30)
     
-    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments))
+    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments), sig)
     tb.build_act_phase()
     
     act_phase = tb.get_meta_test().act_phase
     generated_code = ast.unparse(act_phase)
     
     assert "*" not in generated_code, "should not have any unpacking for regular parameters"
+
+
+def test_test_builder_custom_varargs_names(tmp_path):
+    """Test that variadic arguments work with custom names (not just 'args' and 'kwargs')"""
+    def example_func(a, b, *items, **options):
+        pass
+
+    sig = inspect.signature(example_func)
+    bound_args = sig.bind(10, 20, 30, 40, x=100, y=200)
+    
+    tb = TestBuilder(tmp_path, "example_func", dict(bound_args.arguments), sig)
+    tb.build_act_phase()
+    
+    act_phase = tb.get_meta_test().act_phase
+    generated_code = ast.unparse(act_phase)
+    
+    # Verify that custom names are unpacked correctly
+    assert "*items" in generated_code, "items should be unpacked with *"
+    assert "**options" in generated_code, "options should be unpacked with **"
+    # Ensure they're not passed as regular parameters
+    assert "items, options)" not in generated_code, "items and options should not be passed as regular parameters"

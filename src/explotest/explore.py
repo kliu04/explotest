@@ -83,6 +83,7 @@ def explore(
                 fut_path,
                 fut_name,
                 bound_args,
+                fut_signature,
             )
 
             test_builder.build_imports(
