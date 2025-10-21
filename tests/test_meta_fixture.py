@@ -148,4 +148,108 @@ def generate_foo():
     assert ast_equal(generated_list[2], expected_ast)
 
 
+def test_make_fixture_no_dependencies():
+    """Test creating a fixture without dependencies."""
+    body = [ast.parse("value = 100", mode="exec").body[0]]
+    ret = ast.Return(value=ast.Name(id="value", ctx=ast.Load()))
+    mf = MetaFixture(depends=[], parameter="value", body=body, ret=ret)
+
+    generated_list = mf.make_fixture()
+
+    assert len(generated_list) == 1
+    fixture = generated_list[0]
+    assert isinstance(fixture, ast.FunctionDef)
+    assert fixture.name == "generate_value"
+    assert len(fixture.args.args) == 0  # No dependencies
+    assert len(fixture.body) == 2  # body statement + return
+
+
+def test_make_fixture_diamond_dependency():
+    """Test creating a fixture with diamond dependency pattern."""
+    # Create base fixture (bottom of diamond)
+    base_body = [ast.parse("base = 1", mode="exec").body[0]]
+    base_ret = ast.Return(value=ast.Name(id="base", ctx=ast.Load()))
+    base = MetaFixture(depends=[], parameter="base", body=base_body, ret=base_ret)
+
+    # Create two middle fixtures that depend on base
+    left_body = [ast.parse("left = base * 2", mode="exec").body[0]]
+    left_ret = ast.Return(value=ast.Name(id="left", ctx=ast.Load()))
+    left = MetaFixture(depends=[base], parameter="left", body=left_body, ret=left_ret)
+
+    right_body = [ast.parse("right = base * 3", mode="exec").body[0]]
+    right_ret = ast.Return(value=ast.Name(id="right", ctx=ast.Load()))
+    right = MetaFixture(depends=[base], parameter="right", body=right_body, ret=right_ret)
+
+    # Create top fixture that depends on both left and right
+    top_body = [ast.parse("top = left + right", mode="exec").body[0]]
+    top_ret = ast.Return(value=ast.Name(id="top", ctx=ast.Load()))
+    top = MetaFixture(depends=[left, right], parameter="top", body=top_body, ret=top_ret)
+
+    generated_list = top.make_fixture()
+
+    # Should have 4 fixtures: top, left, right, base (but base should appear only once)
+    assert len(generated_list) == 4
+
+    # Check top fixture has correct name and dependencies
+    top_fixture = generated_list[0]
+    assert isinstance(top_fixture, ast.FunctionDef)
+    assert top_fixture.name == "generate_top"
+    assert len(top_fixture.args.args) == 2  # depends on left and right
+    param_names = [arg.arg for arg in top_fixture.args.args]
+    assert "generate_left" in param_names
+    assert "generate_right" in param_names
+
+
+def test_make_fixture_with_complex_body():
+    """Test creating a fixture with multiple statements in body."""
+    body = [
+        ast.parse("temp = 10", mode="exec").body[0],
+        ast.parse("result = temp * 2", mode="exec").body[0],
+        ast.parse("result += 5", mode="exec").body[0],
+    ]
+    ret = ast.Return(value=ast.Name(id="result", ctx=ast.Load()))
+    mf = MetaFixture(depends=[], parameter="result", body=body, ret=ret)
+
+    generated_list = mf.make_fixture()
+
+    assert len(generated_list) == 1
+    fixture = generated_list[0]
+    assert isinstance(fixture, ast.FunctionDef)
+    assert fixture.name == "generate_result"
+    assert len(fixture.body) == 4  # 3 body statements + return
+
+
+def test_make_fixture_three_linear_dependencies():
+    """Test creating a fixture with three linear dependencies."""
+    # dep1 depends on nothing
+    dep1_body = [ast.parse("a = 5", mode="exec").body[0]]
+    dep1_ret = ast.Return(value=ast.Name(id="a", ctx=ast.Load()))
+    dep1 = MetaFixture(depends=[], parameter="a", body=dep1_body, ret=dep1_ret)
+
+    # dep2 depends on dep1
+    dep2_body = [ast.parse("b = a * 2", mode="exec").body[0]]
+    dep2_ret = ast.Return(value=ast.Name(id="b", ctx=ast.Load()))
+    dep2 = MetaFixture(depends=[dep1], parameter="b", body=dep2_body, ret=dep2_ret)
+
+    # dep3 depends on dep2
+    dep3_body = [ast.parse("c = b + 10", mode="exec").body[0]]
+    dep3_ret = ast.Return(value=ast.Name(id="c", ctx=ast.Load()))
+    dep3 = MetaFixture(depends=[dep2], parameter="c", body=dep3_body, ret=dep3_ret)
+
+    # main depends on dep3
+    main_body = [ast.parse("result = c * 3", mode="exec").body[0]]
+    main_ret = ast.Return(value=ast.Name(id="result", ctx=ast.Load()))
+    main = MetaFixture(depends=[dep3], parameter="result", body=main_body, ret=main_ret)
+
+    generated_list = main.make_fixture()
+
+    assert len(generated_list) == 4
+
+    # Check main fixture
+    result_fixture = generated_list[0]
+    assert isinstance(result_fixture, ast.FunctionDef)
+    assert result_fixture.name == "generate_result"
+    assert len(result_fixture.args.args) == 1  # depends on c
+    assert result_fixture.args.args[0].arg == "generate_c"
+
 
