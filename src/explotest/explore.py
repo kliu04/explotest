@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Callable
 from typing import Literal
 
+import dill
+
 from .autoassert import test_runner
 from .autoassert.autoassert import determine_assertion, generate_assertion
 from .helpers import Mode, sanitize_name, is_running_under_test
@@ -14,6 +16,7 @@ from .reconstructors.pickle_reconstructor import PickleReconstructor
 from .test_builder import TestBuilder
 
 mark = False
+dill.settings["recurse"] = True
 
 
 def explotest_mark():
