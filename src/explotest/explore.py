@@ -90,7 +90,7 @@ def explore(
 
             test_builder.build_imports(
                 getattr(sys.modules[_func.__module__], "__package__", None)
-            ).build_fixtures(reconstructor).build_act_phase()
+            ).build_fixtures(reconstructor).build_act_phase(fut_signature)
             test_builder.build_mocks({}, reconstructor)
 
             # this has to be below where we save the arguments to avoid mutation affecting the saved

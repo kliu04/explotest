@@ -1,4 +1,5 @@
 import ast
+import inspect
 from pathlib import Path
 from typing import Optional, Any, Self
 
@@ -73,8 +74,54 @@ class TestBuilder:
         self.result.asserts = assertion_result.assertions
         return self
 
-    def build_act_phase(self) -> Self:
+    def build_act_phase(self, signature: inspect.Signature) -> Self:
         filename = self.fut_path.stem
+
+        var_positional_param = None
+        var_keyword_param = None
+        keyword_only_params = set()
+
+        for param_name, param in signature.parameters.items():
+            if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                var_positional_param = param_name
+            elif param.kind == inspect.Parameter.VAR_KEYWORD:
+                var_keyword_param = param_name
+            elif param.kind == inspect.Parameter.KEYWORD_ONLY:
+                keyword_only_params.add(param_name)
+
+        # Separate parameters into positional args, keyword args, *args, and **kwargs
+        positional_args = []
+        keyword_args = []
+        starargs = None
+        kwargs = None
+
+        for param in self.parameters:
+            if param == var_positional_param:
+                # Variadic positional parameter (*args)
+                starargs = ast.Starred(
+                    value=ast.Name(id=param, ctx=ast.Load()), ctx=ast.Load()
+                )
+            elif param == var_keyword_param:
+                # Variadic keyword parameter (**kwargs)
+                kwargs = ast.Name(id=param, ctx=ast.Load())
+            elif param in keyword_only_params:
+                # Keyword-only parameter (must be passed as keyword argument)
+                keyword_args.append(
+                    ast.keyword(arg=param, value=ast.Name(id=param, ctx=ast.Load()))
+                )
+            else:
+                # Regular positional or positional-or-keyword parameter
+                positional_args.append(ast.Name(id=param, ctx=ast.Load()))
+
+        args_list = positional_args
+        if starargs:
+            args_list.append(starargs)
+
+        # Build keywords list with keyword-only params and **kwargs if needed
+        keywords_list = keyword_args
+        if kwargs:
+            keywords_list.append(ast.keyword(arg=None, value=kwargs))
+
         call_ast = ast.Assign(
             targets=[ast.Name(id="return_value", ctx=ast.Store())],
             value=ast.Call(
@@ -82,7 +129,8 @@ class TestBuilder:
                     id=f"{filename}.{self.fut_name}",
                     ctx=ast.Load(),
                 ),
-                args=[ast.Name(id=param, ctx=ast.Load()) for param in self.parameters],
+                args=args_list,
+                keywords=keywords_list,
             ),
         )
         call_ast = ast.fix_missing_locations(call_ast)
