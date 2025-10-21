@@ -15,13 +15,13 @@ from explotest.reconstructors.argument_reconstructor import ArgumentReconstructo
 
 
 class AssertionToGenerate(Enum):
-    NON_EXISTENCE = -1
-    NONE = 0
-    EXISTENCE = 1
-    LENGTH = 2
-    TOTAL_EQUALITY_REPR = 3
-    TOTAL_EQUALITY_PICKLE = 4
-    TOTAL_EQUALITY_ARR = 5
+    NULL,
+    NON_NULL,
+    TYPE,
+    LENGTH,
+    REPR,
+    PICKLE,
+    ARR,
 
 
 @dataclass
@@ -31,41 +31,39 @@ class AssertionResult:
 
 
 def determine_assertion(er: ExecutionResult) -> AssertionToGenerate:
-    """ """
+    """
+    :param er: Result of two runs of the function-under-test
+    :return: Strongest kind of assertion to generate
+    """
+
+    if er.result_from_run_one is None and er.result_from_run_two is None:
+        return AssertionToGenerate.NULL
 
     if er.result_from_run_one == er.result_from_run_two:
         if ArgumentReconstructor.is_reconstructible(er.result_from_run_one):
-            return AssertionToGenerate.TOTAL_EQUALITY_REPR
+            return AssertionToGenerate.TOTAL_EQUALITY_ARR
         else:
             try:
                 dill.dumps(er.result_from_run_one)  # try to serialize...
                 # success if we reach this block
                 return AssertionToGenerate.TOTAL_EQUALITY_PICKLE
             except Exception:
-                # not pickleable, not ARR-able, try to use __repr__
-                return AssertionToGenerate.TOTAL_EQUALITY_REPR
-    else:
-        # okay, they aren't equal by any notion
-        # are they at least the same type?
-        if type(er.result_from_run_one) is not type(er.result_from_run_two):
-            # if they're both null, at least we can check for non-existence
-            if er.result_from_run_one is None and er.result_from_run_two is None:
-                return AssertionToGenerate.NON_EXISTENCE
-            else:
-                # this means they have different types, which also captures the case where one object is none and the
-                # other is not none. there's no meaningful assertion to generate between two objects of *different* types.
-                return AssertionToGenerate.NONE  # :(
-        else:
-            # if they're the same type, let's see if it has a __len__ quality
-            if getattr(er.result_from_run_one, "__len__", False):
-                if len(er.result_from_run_one) == len(
-                    er.result_from_run_two
-                ):  # if the lengths are equal, let's use length
-                    return AssertionToGenerate.LENGTH
-                else:
+                if getattr(er.result_from_run_one, "__repr__", False):
                     return AssertionToGenerate.TOTAL_EQUALITY_REPR
-            else:
-                return AssertionToGenerate.NONE
+            # same type
+            return AssertionToGenerate.TYPE
+    elif type(er.result_from_run_one) is type(er.result_from_run_two):
+        # if they're the same type, let's see if it has a __len__ quality
+        if getattr(er.result_from_run_one, "__len__", False) and len(
+            er.result_from_run_one
+        ) == len(
+            er.result_from_run_two
+        ):  # if the lengths are equal, let's use length
+            return AssertionToGenerate.LENGTH
+        return AssertionToGenerate.TYPE
+    # this means they have different types, which also captures the case where one object is none and the
+    # other is not none. there's no meaningful assertion to generate between two objects of *different* types.
+    return AssertionToGenerate.NONE
 
 
 def generate_assertion(
