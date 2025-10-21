@@ -131,3 +131,27 @@ def test_test_builder_only_kwargs(tmp_path):
 
     mt = tb.get_meta_test()
     assert len(mt.direct_fixtures) == 1
+
+
+def test_test_builder_complex_signature_from_demo(tmp_path):
+    """Test TestBuilder with complex signature from args_kwargs demo.
+    
+    This matches the signature: foo1(x, y, z, *args, bar, baz, **kwargs)
+    called as: foo1(1, 2, 3, 4, 5, baz=6, bar=7, kwarg1=True, kwarg2=False)
+    """
+    def example_func(x, y, z, *args, bar, baz, **kwargs):
+        pass
+
+    sig = inspect.signature(example_func)
+
+    bound_args = sig.bind(1, 2, 3, 4, 5, baz=6, bar=7, kwarg1=True, kwarg2=False)
+    tb = TestBuilder(tmp_path, "fut", dict(bound_args.arguments))
+
+    tb.build_imports(None).build_fixtures(ArgumentReconstructor(tmp_path))
+
+    # Verify parameters and arguments match expectations
+    assert tb.parameters == ["x", "y", "z", "args", "bar", "baz", "kwargs"]
+    assert tb.arguments == [1, 2, 3, (4, 5), 7, 6, {"kwarg1": True, "kwarg2": False}]
+
+    mt = tb.get_meta_test()
+    assert len(mt.direct_fixtures) == 7
