@@ -26,13 +26,13 @@ def run_fut_twice(func, args, kwargs) -> ExecutionResult | None:
         os.environ["RUNNING_GENERATED_TEST"] = "true"
 
         # save these in case f modifies its arguments
-        pickled_args = dill.dumps(*args)
-        pickled_kwargs = dill.dumps(**kwargs)
-        ret1 = func(dill.loads(pickled_args), dill.loads(pickled_kwargs))
-        ret2 = func(dill.loads(pickled_args), dill.loads(pickled_kwargs))
+        pickled_args = dill.dumps(args)
+        pickled_kwargs = dill.dumps(kwargs)
+        ret1 = func(*dill.loads(pickled_args), **dill.loads(pickled_kwargs))
+        ret2 = func(*dill.loads(pickled_args), **dill.loads(pickled_kwargs))
 
         return ExecutionResult(ret1, ret2)
-    except Exception:
+    except Exception as e:
         return None
     finally:
         sys.stdout = old_stdout
