@@ -9,7 +9,9 @@ from typing import Literal
 import dill
 
 from .autoassert import test_runner
-from .autoassert.autoassert import determine_assertion, generate_assertion
+from .autoassert.autoassert import (
+    AssertionGenerator,
+)
 from .helpers import Mode, sanitize_name, is_running_under_test
 from .reconstructors.argument_reconstructor import ArgumentReconstructor
 from .reconstructors.pickle_reconstructor import PickleReconstructor
@@ -97,14 +99,18 @@ def explore(
             # arguments
             res: Any = _func(*args, **kwargs)
 
+            # TODO: write a document on reflections of test factoring paper
+            # TODO: write confusing points
+            # TODO: java specific problems
+
             if mark_mode and not mark:
                 return res
 
             execution_result = test_runner.run_fut_twice(_func, args, kwargs)
             if execution_result:
-                assertion_result = generate_assertion(
-                    res, determine_assertion(execution_result)
-                )
+                assertion_generator = AssertionGenerator()
+                assertion_generator.determine_assertion(execution_result)
+                assertion_result = assertion_generator.generate_assertion(res, fut_path)
                 test_builder.build_assertions(assertion_result)
 
             meta_test = test_builder.get_meta_test()

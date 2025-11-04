@@ -45,10 +45,12 @@ class MetaTest:
         """
         result = [
             ast.Assign(
-                targets=[ast.Name(id=arg, ctx=ast.Store())],
-                value=ast.Name(id=self._prepend_generate(arg), ctx=ast.Load()),
+                targets=[ast.Name(id=param, ctx=ast.Store())],
+                value=ast.Name(id=self._prepend_generate(param), ctx=ast.Load()),
             )
-            for arg in self.fut_parameters
+            for param in [
+                direct_fixture.parameter for direct_fixture in self.direct_fixtures
+            ]
         ]
 
         return result
@@ -65,7 +67,10 @@ class MetaTest:
             args=ast.arguments(
                 args=[
                     ast.arg(self._prepend_generate(param))
-                    for param in self.fut_parameters
+                    for param in [
+                        direct_fixture.parameter
+                        for direct_fixture in self.direct_fixtures
+                    ]
                 ]
             ),
             body=(self._fixture_to_param() + [self.act_phase] + self.asserts),

@@ -17,6 +17,7 @@ def bar(x, y, /, z, *, bar):
 
 
 bar(1, 2, 3, bar=4)
+bar(1, 2, z=3, bar=4)
 
 
 foo1(1, 2, 3, 4, 5, baz=6, bar=7, kwarg1=True, kwarg2=False)
