@@ -99,10 +99,6 @@ def explore(
             # arguments
             res: Any = _func(*args, **kwargs)
 
-            # TODO: write a document on reflections of test factoring paper
-            # TODO: write confusing points
-            # TODO: java specific problems
-
             if mark_mode and not mark:
                 return res
 

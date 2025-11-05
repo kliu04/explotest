@@ -73,7 +73,8 @@ class MetaTest:
                     ]
                 ]
             ),
-            body=(self._fixture_to_param() + [self.act_phase] + self.asserts),
+            # pyright: ignore [reportArgumentType]
+            body=self._fixture_to_param() + [self.act_phase] + self.asserts,
         )
 
         return main_function

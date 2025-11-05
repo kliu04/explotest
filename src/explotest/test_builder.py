@@ -154,7 +154,7 @@ class TestBuilder:
                     for fixture in d.values()
                 ]
             ),
-            body=(
+            body=(  # pyright: ignore [reportArgumentType]
                 ([ast.Global(names=list(d.keys()))] if len(d) > 0 else [])
                 + [
                     ast.Assign(
