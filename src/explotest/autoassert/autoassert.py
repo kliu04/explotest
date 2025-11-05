@@ -33,7 +33,7 @@ class AssertionResult:
 
 
 def has_custom_repr(raw: Any) -> bool:
-    cls = getattr(er.result_from_run_one, "__class__", False)
+    cls = getattr(raw, "__class__", False)
     if not cls:
         return False
     for base in cls.__mro__:
