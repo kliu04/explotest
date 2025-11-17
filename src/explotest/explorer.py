@@ -17,20 +17,20 @@ from .reconstructors.argument_reconstructor import ArgumentReconstructor
 from .reconstructors.pickle_reconstructor import PickleReconstructor
 from .test_builder import TestBuilder
 
-mark = False
+record = False
 dill.settings["recurse"] = True
 
 
-def explotest_mark():
-    global mark
-    mark = True
+def explotest_record():
+    global record
+    record = True
 
 
 def explore(
     func: Callable | None = None,
     *,
     mode: Literal["p", "a"] = "p",
-    mark_mode: bool = False,
+    explicit_record: bool = False,
 ) -> Callable:
     """Add the @explore annotation to a function to recreate its arguments at runtime."""
 
@@ -40,8 +40,8 @@ def explore(
         # preserve docstrings, etc. of original fn
         @functools.wraps(_func)
         def wrapper(*args, **kwargs) -> Any:
-            global mark
-            mark = False
+            global record
+            record = False
 
             # if file is a test file, do nothing
             # (needed to avoid explotest generated code running on itself)
@@ -99,7 +99,7 @@ def explore(
             # arguments
             res: Any = _func(*args, **kwargs)
 
-            if mark_mode and not mark:
+            if explicit_record and not record:
                 return res
 
             execution_result = test_runner.run_fut_twice(_func, args, kwargs)

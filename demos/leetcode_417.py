@@ -1,6 +1,6 @@
 from typing import List
 
-from explotest import explore, explotest_mark
+from explotest import explore, explotest_record
 
 
 class Solution:
@@ -13,14 +13,14 @@ class Solution:
                     ans.append(x)
         return ans
 
-    @explore(mode="p", mark_mode=True)
+    @explore(mode="p", explicit_record=True)
     def search(self, y, x, heights):
         pacific = False
         atlantic = False
         visited = set()
 
         if x == 0:
-            explotest_mark()
+            explotest_record()
 
         # @explore(mode="p")
         def search_recur(y, x):

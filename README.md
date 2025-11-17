@@ -1,9 +1,8 @@
 # ExploTest
 
-ExploTest is a tool to create unit tests from exploratory test runs.
-
-This project is currently under active development and API breaks can occur at any time.
-
+ExploTest is a tool that turns exploratory test runs into unit tests by capturing and serializing run-time arguments.
+By adding the `@explore` decorator to any function, ExploTest automatically generates unit tests with assertions based
+on the previous execution values.
 ## Installation
 ```bash
 pip install ExploTest
@@ -16,11 +15,78 @@ python3 -m pip install -e <path/to/explotest>
 ```
 
 ## Usage
-On any function or method (except for closures), add the `@explore` decorator. 
 
-We accept two optional settings, `mode` and `mark_mode`:
-- `mode` can be either `"p"` or `"a"` (default is `"p"`) to change the reconstruction mode.
-- `mark_mode` can be either `False` or `True` (default is `False`); if set to `True` tests are only generated if execution reaches a `explotest_mark()` function.
+On any function or method (except for closures), add the `@explore` decorator. When this function (the
+function-under-test or FUT) is called at runtime, a
+unit test will be generated and saved in same directory as the file of the FUT.
+
+The `@explore` decorator accepts two optional parameters, `mode` and `explicit_record`.
+
+### Configuration
+
+`mode` determines how the run-time arguments are reconstructed in the unit test:
+
+- Setting this to `"p"` or `"pickle"` results in ExploTest "pickling" (a Python specific binary serialization)
+  each argument into a file, then loading this file in the unit test. ExploTest uses
+  the [dill](https://dill.readthedocs.io/en/latest/) library
+  for pickling, which enables support for function arguments among others. However, objects that cannot be pickled (
+  e.g., Pandas DataFrames) cannot be saved. This is the default behaviour.
+- Setting this to `"a"` or `"arr"` results in ExploTest attempting to reconstruct the parameter by creating a new object
+  and setting all its fields to the runtime argument.
+  For example, when running the code
+
+```python
+class Bar:
+    x = 1
+
+
+@explore(mode="a")
+def baz(b):
+    return
+
+
+baz(Bar())
+```
+
+the unit test
+
+```python
+@pytest.fixture
+def generate_b():
+    clone_b = scratchpad.Bar.__new__(scratchpad.Bar)
+    setattr(clone_b, 'x', 1)
+    return clone_b
+
+
+def test_baz(generate_b):
+    b = generate_b
+    return_value = scratchpad.baz(b)
+    assert return_value is None
+```
+
+is generated. Some objects cannot be ARR'ed, namely ones that are "more" than just a collection of fields. In this case,
+ExploTest will try to fall back on pickling.
+
+`explicit_record` determines when ExploTest generates a unit test. By default, this is `False` and so ExploTest
+generates a unit test everytime
+a function with the `@explore` decorator is called. However, this may become unwieldy if the function is called many
+times and
+only certain tests are desired. By setting `explicit_record` to `True` in a function, a unit test will only be created
+if the function body calls
+`explotest_record()`.
+
+For example,
+
+```python
+@explore(explicit_record=True)
+def fib(n):
+    if n <= 1:
+        explotest_record()
+        return 1
+    return fib(n - 1) + fib(n - 2)
+```
+
+A unit test will only be generated for when `n <= 1`.
 
 ## Development Setup
 
