@@ -73,7 +73,7 @@ a function with the `@explore` decorator is called. However, this may become unw
 times and
 only certain tests are desired. By setting `explicit_record` to `True` in a function, a unit test will only be created
 if the function body calls
-`explotest_record()`.
+`explotest_record()`. Note that due to implementation details, this is not thread safe.
 
 For example,
 
