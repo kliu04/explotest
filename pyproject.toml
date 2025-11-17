@@ -13,7 +13,7 @@ target-version = ['py313']
 
 [project]
 name = "ExploTest"
-version = "1.0.0"
+version = "1.0.1"
 authors = [{ name = "Kevin Liu", email = "kliu52@student.ubc.ca" },
     { name = "Randy Zhu", email = "randyzhu@student.ubc.ca" },
 ]

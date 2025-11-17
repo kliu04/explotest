@@ -11,6 +11,7 @@ class AbstractReconstructor(ABC):
     """
     Superclass for all reconstructors.
     """
+
     def __init__(
         self,
         file_path: Path,
