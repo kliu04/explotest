@@ -31,7 +31,7 @@ The `@explore` decorator accepts two optional parameters, `mode` and `explicit_r
   the [dill](https://dill.readthedocs.io/en/latest/) library
   for pickling, which enables support for function arguments among others. However, objects that cannot be pickled (
   e.g., Pandas DataFrames) cannot be saved. This is the default behaviour.
-- Setting this to `"a"` or `"arr"` results in ExploTest attempting to reconstruct the parameter by creating a new object
+- Setting this to `"a"` results in ExploTest attempting to reconstruct the parameter by creating a new object
   and setting all its fields to the runtime argument.
   For example, when running the code
 
@@ -64,7 +64,8 @@ def test_baz(generate_b):
     assert return_value is None
 ```
 
-is generated. Some objects cannot be ARR'ed, namely ones that are "more" than just a collection of fields. In this case,
+is generated. This will not work for some objects, namely ones that are "more" than just a collection of fields or have
+fields that cannot be `setattr`'d. In this case,
 ExploTest will try to fall back on pickling.
 
 `explicit_record` determines when ExploTest generates a unit test. By default, this is `False` and so ExploTest

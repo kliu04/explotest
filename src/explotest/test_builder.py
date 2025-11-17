@@ -13,6 +13,7 @@ def is_inside_package(path: Path) -> bool:
 
 
 class TestBuilder:
+    """Builder for generated unit tests."""
 
     def __init__(self, fut_path: Path, fut_name: str, bound_args: dict[str, Any]):
         self.result = MetaTest()

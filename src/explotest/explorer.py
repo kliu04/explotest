@@ -32,7 +32,9 @@ def explore(
     mode: Literal["p", "a"] = "p",
     explicit_record: bool = False,
 ) -> Callable:
-    """Add the @explore annotation to a function to recreate its arguments at runtime."""
+    """Add the @explore annotation to a function to recreate its arguments at runtime.
+    See the docs for an explanation of the optional arguments.
+    """
 
     def _explore(_func):
         counter = 0
@@ -103,6 +105,7 @@ def explore(
                 return res
 
             execution_result = test_runner.run_fut_twice(_func, args, kwargs)
+            # add assertions
             if execution_result:
                 assertion_generator = AssertionGenerator()
                 assertion_generator.determine_assertion(execution_result)

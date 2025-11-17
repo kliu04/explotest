@@ -9,7 +9,7 @@ from typing import Any, Optional, Self
 
 
 class Mode(Enum):
-    """The mode that ExploTest runs in; one of pickling, [argument] reconstructing, or tracing."""
+    """The mode that ExploTest runs in; one of pickling or [argument] reconstructing"""
 
     PICKLE = 1
     ARR = 2
@@ -22,8 +22,6 @@ class Mode(Enum):
             "p": cls.PICKLE,
             "arr": cls.ARR,
             "a": cls.ARR,
-            # "trace": cls.TRACE,
-            # "t": cls.TRACE,
         }
         return aliases.get(normalized, None)
 
@@ -38,10 +36,6 @@ def is_lib_file(filepath: str) -> bool:
 
 def random_id():
     return uuid.uuid4().hex[:8]
-
-
-def uniquify(name: str) -> str:
-    return f"{name}_{random_id()}"
 
 
 def sanitize_name(name: str) -> str:
