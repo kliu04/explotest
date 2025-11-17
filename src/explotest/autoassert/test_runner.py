@@ -32,7 +32,7 @@ def run_fut_twice(func, args, kwargs) -> ExecutionResult | None:
         ret2 = func(*dill.loads(pickled_args), **dill.loads(pickled_kwargs))
 
         return ExecutionResult(ret1, ret2)
-    except Exception as e:
+    except Exception:
         return None
     finally:
         sys.stdout = old_stdout
