@@ -1,4 +1,5 @@
 import IPython
+
 from .extension import ExplotestMagics
 
 __version__ = "0.1.5"
