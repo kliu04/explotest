@@ -129,9 +129,11 @@ class AssertionGenerator:
                     [
                         ast.Assert(
                             test=ast.Compare(
-                                left=ast.Constant(value=self.type_data),
+                                left=ast.Attribute(value=ast.Call(func=ast.Name(id="type", ctx=ast.Load()),
+                                              args=[ast.Name(id="return_value", ctx=ast.Load())]),
+                                                   attr='__name__', ctx=ast.Load()),
                                 ops=[ast.Eq()],
-                                comparators=[ast.Constant(value=type(value).__name__)],
+                                comparators=[ast.Constant(value=self.type_data)],
                             ),
                         )
                     ],
