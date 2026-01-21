@@ -74,7 +74,7 @@ class ExplotestMagics(Magics):
         new_call_with_explore = ast.Call(
             func=explore_call,
             args=call_body.args,
-            keywords=getattr(call_body, 'keywords', []),
+            keywords=getattr(call_body, "keywords", []),
         )
 
         print(ast.dump(new_call_with_explore, indent=4))
