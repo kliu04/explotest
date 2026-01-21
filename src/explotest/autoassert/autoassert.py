@@ -116,7 +116,7 @@ class AssertionGenerator:
                     [
                         ast.Assert(
                             test=ast.Compare(
-                                left=ast.Name(id="return_value", ctx=ast.Load()),
+                                left=ast.Name(id=value_name, ctx=ast.Load()),
                                 ops=[ast.IsNot()],
                                 comparators=[ast.Constant(value=None)],
                             )
@@ -133,7 +133,7 @@ class AssertionGenerator:
                                     value=ast.Call(
                                         func=ast.Name(id="type", ctx=ast.Load()),
                                         args=[
-                                            ast.Name(id="return_value", ctx=ast.Load())
+                                            ast.Name(id=value_name, ctx=ast.Load())
                                         ],
                                     ),
                                     attr="__name__",
@@ -153,7 +153,7 @@ class AssertionGenerator:
                             test=ast.Compare(
                                 left=ast.Call(
                                     func=ast.Name(id="len", ctx=ast.Load()),
-                                    args=[ast.Name(id="return_value", ctx=ast.Load())],
+                                    args=[ast.Name(id=value_name, ctx=ast.Load())],
                                 ),
                                 ops=[ast.Eq()],
                                 comparators=[ast.Constant(value=len(value))],
@@ -167,7 +167,7 @@ class AssertionGenerator:
                     [
                         ast.Assert(
                             test=ast.Compare(
-                                left=ast.Name(id="return_value", ctx=ast.Load()),
+                                left=ast.Name(id=value_name, ctx=ast.Load()),
                                 ops=[ast.Eq()],
                                 comparators=[ast.Constant(value=repr(value))],
                             )
@@ -184,7 +184,7 @@ class AssertionGenerator:
                         [
                             ast.Assert(
                                 test=ast.Compare(
-                                    left=ast.Name(id="return_value", ctx=ast.Load()),
+                                    left=ast.Name(id=value_name, ctx=ast.Load()),
                                     ops=[ast.Eq()],
                                     comparators=[  # FIXME: go to meta_fixture and have these be automatically generated
                                         ast.Name(
@@ -208,7 +208,7 @@ class AssertionGenerator:
                         [
                             ast.Assert(
                                 test=ast.Compare(
-                                    left=ast.Name(id="return_value", ctx=ast.Load()),
+                                    left=ast.Name(id=value_name, ctx=ast.Load()),
                                     ops=[ast.Eq()],
                                     comparators=[  # FIXME: go to meta_fixture and have these be automatically generated
                                         ast.Name(
