@@ -32,3 +32,10 @@ def test_null(ag_null):
     assertions = ag_null.generate_assertion(value=[], fut_path="").assertions
     assert len(assertions) == 1
     assert ast.unparse(assertions[0]) == "assert return_value is None"
+
+
+def test_determine_is_none_assertion():
+    er = ExecutionResult(None, None)
+    ag = AssertionGenerator()
+    ag.determine_assertion(er)
+    assert ag.assertion_to_generate == AssertionToGenerate.NULL
