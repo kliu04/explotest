@@ -53,37 +53,47 @@ class AssertionGenerator:
         :return: Strongest kind of assertion to generate
         """
         if er.result_from_run_one is None and er.result_from_run_two is None:
+            print("Both results were None, generating NULL assertion")
             self.assertion_to_generate = AssertionToGenerate.NULL
             return
 
         if er.result_from_run_one == er.result_from_run_two:
+            print("Objects are equivalent")
             if ArgumentReconstructor.is_reconstructible(er.result_from_run_one):
+                print("ARRable")
                 self.assertion_to_generate = AssertionToGenerate.ARR
             else:
                 try:
                     dill.dumps(er.result_from_run_one)  # try to serialize...
                     # success if we reach this block
+                    print("Serializable")
                     self.assertion_to_generate = AssertionToGenerate.PICKLE
                 except Exception:
                     if has_custom_repr(er.result_from_run_one):
+                        print("Has a custom __repr__")
                         self.assertion_to_generate = AssertionToGenerate.REPR
                     else:
                         # same type
+                        print("type-based assertion")
                         self.assertion_to_generate = AssertionToGenerate.TYPE
                         # I'm really sorry for this affront against programming
                         self.type_data = type(er.result_from_run_one).__name__
         elif type(er.result_from_run_one) is type(er.result_from_run_two):
+            print("Not equivalent, but they are the same types")
             # if they're the same type, let's see if it has a __len__ quality
             if getattr(er.result_from_run_one, "__len__", False) and len(
                 er.result_from_run_one
             ) == len(
                 er.result_from_run_two
             ):  # if the lengths are equal, let's use length
+                print("special length check for lists")
                 self.assertion_to_generate = AssertionToGenerate.LENGTH
             else:
+                print("type-based assertion")
                 self.assertion_to_generate = AssertionToGenerate.TYPE
                 self.type_data = type(er.result_from_run_one).__name__
         else:
+            print("Not equivalent, divergent types, there's *nothing* we can do.")
             # this means they have different types, which also captures the case where one object is none and the
             # other is not none. there's no meaningful assertion to generate between two objects of *different* types.
             self.assertion_to_generate = AssertionToGenerate.NONE
@@ -132,9 +142,7 @@ class AssertionGenerator:
                                 left=ast.Attribute(
                                     value=ast.Call(
                                         func=ast.Name(id="type", ctx=ast.Load()),
-                                        args=[
-                                            ast.Name(id=value_name, ctx=ast.Load())
-                                        ],
+                                        args=[ast.Name(id=value_name, ctx=ast.Load())],
                                     ),
                                     attr="__name__",
                                     ctx=ast.Load(),
